@@ -2,6 +2,8 @@
 
 ImGui service and samples for SimCity 4 DLL plugins using the gzcom-dll SDK.
 
+![Screenshot](docs/assets/preview.jpg)
+
 ## Build
 
 Prereqs:
