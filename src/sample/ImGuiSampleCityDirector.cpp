@@ -1,10 +1,10 @@
 #include "cIGZFrameWork.h"
-#include "cIGZImGuiService.h"
 #include "cISC4App.h"
 #include "cRZCOMDllDirector.h"
 #include "GZServPtrs.h"
 #include "imgui.h"
-#include "ImGuiServiceIds.h"
+#include "public/cIGZImGuiService.h"
+#include "public/ImGuiServiceIds.h"
 #include "utils/Logger.h"
 
 namespace {
@@ -18,7 +18,7 @@ namespace {
 
     bool IsCityView()
     {
-        cISC4AppPtr app;
+        const cISC4AppPtr app;
         if (!app) {
             return false;
         }
@@ -107,10 +107,10 @@ public:
 
         auto* state = new SampleCityState();
         ImGuiPanelDesc desc{};
-        desc.panel_id = kSampleCityPanelId;
+        desc.id = kSampleCityPanelId;
         desc.order = 110;
         desc.visible = true;
-        desc.render = &RenderSampleCityPanel;
+        desc.on_render = &RenderSampleCityPanel;
         desc.on_shutdown = &ShutdownSampleCity;
         desc.data = state;
 

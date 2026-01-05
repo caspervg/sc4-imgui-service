@@ -1,55 +1,79 @@
 #include "cRZCOMDllDirector.h"
 
 #include "cIGZFrameWork.h"
-#include "cIGZImGuiService.h"
 #include "imgui.h"
-#include "ImGuiServiceIds.h"
+#include "public/cIGZImGuiService.h"
+#include "public/ImGuiPanelAdapter.h"
+#include "public/ImGuiServiceIds.h"
 #include "utils/Logger.h"
 
 namespace {
     constexpr auto kImGuiSampleDirectorID = 0xD4C89190;
     constexpr uint32_t kSamplePanelId = 0x1B5A2F01;
 
-    struct SampleState
+    class SamplePanel final : public ImGuiPanel
     {
-        bool showDetails = true;
-        int clickCount = 0;
+    public:
+        void OnInit() override
+        {
+            LOG_INFO("ImGuiSample: panel initialized");
+        }
+
+        void OnRender() override
+        {
+            static auto loggedFirstRender = false;
+            if (!loggedFirstRender) {
+                LOG_INFO("ImGuiSample: rendering sample panel");
+                loggedFirstRender = true;
+            }
+
+            ImGui::Begin("ImGui Service Sample", nullptr, 0);
+            ImGui::TextUnformatted("Hello from the ImGui service sample DLL.");
+            ImGui::Checkbox("Show details", &showDetails_);
+            if (showDetails_) {
+                ImGui::Separator();
+                ImGui::TextUnformatted("This window is rendered via the shared ImGui service.");
+            }
+            if (ImGui::Button("Click", ImVec2(0.0f, 0.0f))) {
+                clickCount_++;
+            }
+            ImGui::SameLine(0.0f, -1.0f);
+            char buffer[64]{};
+            snprintf(buffer, sizeof(buffer), "Clicks: %d", clickCount_);
+            ImGui::TextUnformatted(buffer);
+            ImGui::End();
+        }
+
+        void OnUpdate() override
+        {
+            updateCount_++;
+            if (updateCount_ == 1) {
+                LOG_INFO("ImGuiSample: first update");
+            }
+        }
+
+        void OnVisibleChanged(bool visible) override
+        {
+            LOG_INFO("ImGuiSample: visibility changed to {}", visible);
+        }
+
+        void OnShutdown() override
+        {
+            LOG_INFO("ImGuiSample: shutdown callback");
+            delete this;
+        }
+
+        void OnUnregister() override
+        {
+            LOG_INFO("ImGuiSample: unregister callback");
+            delete this;
+        }
+
+    private:
+        bool showDetails_ = true;
+        int clickCount_ = 0;
+        int updateCount_ = 0;
     };
-
-    void RenderSamplePanel(void* userData)
-    {
-        auto* state = static_cast<SampleState*>(userData);
-        if (!state) {
-            return;
-        }
-
-        static auto loggedFirstRender = false;
-        if (!loggedFirstRender) {
-            LOG_INFO("ImGuiSample: rendering sample panel");
-            loggedFirstRender = true;
-        }
-
-        ImGui::Begin("ImGui Service Sample", nullptr, 0);
-        ImGui::TextUnformatted("Hello from the ImGui service sample DLL.");
-        ImGui::Checkbox("Show details", &state->showDetails);
-        if (state->showDetails) {
-            ImGui::Separator();
-            ImGui::TextUnformatted("This window is rendered via the shared ImGui service.");
-        }
-        if (ImGui::Button("Click", ImVec2(0.0f, 0.0f))) {
-            state->clickCount++;
-        }
-        ImGui::SameLine(0.0f, -1.0f);
-        char buffer[64]{};
-        snprintf(buffer, sizeof(buffer), "Clicks: %d", state->clickCount);
-        ImGui::TextUnformatted(buffer);
-        ImGui::End();
-    }
-
-    void ShutdownSample(void* userData)
-    {
-        delete static_cast<SampleState*>(userData);
-    }
 }
 
 class ImGuiSampleDirector final : public cRZCOMDllDirector
@@ -101,18 +125,12 @@ public:
             LOG_WARN("ImGuiSample: ImGui context not ready yet");
         }
 
-        auto* state = new SampleState();
-        ImGuiPanelDesc desc{};
-        desc.panel_id = kSamplePanelId;
-        desc.order = 100;
-        desc.visible = true;
-        desc.render = &RenderSamplePanel;
-        desc.on_shutdown = &ShutdownSample;
-        desc.data = state;
+        auto* panel = new SamplePanel();
+        ImGuiPanelDesc desc = ImGuiPanelAdapter<SamplePanel>::MakeDesc(panel, kSamplePanelId, 100, true);
 
         if (!service->RegisterPanel(desc)) {
             LOG_WARN("ImGuiSample: failed to register panel");
-            ShutdownSample(state);
+            delete panel;
             service->Release();
             service = nullptr;
             return true;

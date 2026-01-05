@@ -10,6 +10,7 @@
 #include "GZServPtrs.h"
 #include "imgui_impl_dx7.h"
 #include "imgui_impl_win32.h"
+#include "public/ImGuiServiceIds.h"
 #include "utils/Logger.h"
 
 namespace {
@@ -20,13 +21,13 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 ImGuiService::ImGuiService()
     : cRZBaseSystemService(kImGuiServiceID, 0),
-      gameWindow(nullptr),
-      originalWndProc(nullptr),
-      initialized(false),
-      imguiInitialized(false),
-      hookInstalled(false),
-      warnedNoDriver(false),
-      warnedMissingWindow(false)
+      gameWindow_(nullptr),
+      originalWndProc_(nullptr),
+      initialized_(false),
+      imguiInitialized_(false),
+      hookInstalled_(false),
+      warnedNoDriver_(false),
+      warnedMissingWindow_(false)
 {
 }
 
@@ -60,49 +61,51 @@ bool ImGuiService::QueryInterface(uint32_t riid, void** ppvObj)
 
 bool ImGuiService::Init()
 {
-    if (initialized) {
+    if (initialized_) {
         return true;
     }
 
     Logger::Initialize("SC4ImGuiService", "");
     LOG_INFO("ImGuiService: initialized");
     SetServiceRunning(true);
-    initialized = true;
+    initialized_ = true;
     g_instance = this;
     return true;
 }
 
 bool ImGuiService::Shutdown()
 {
-    if (!initialized) {
+    if (!initialized_) {
         return true;
     }
 
-    for (const auto& panel : panels) {
+    for (const auto& panel : panels_) {
         if (panel.desc.on_shutdown) {
             panel.desc.on_shutdown(panel.desc.data);
         }
     }
-    panels.clear();
+    panels_.clear();
 
-    RemoveWndProcHook();
+    RemoveWndProcHook_();
     DX7InterfaceHook::SetFrameCallback(nullptr);
     DX7InterfaceHook::ShutdownImGui();
 
-    imguiInitialized = false;
-    hookInstalled = false;
+    imguiInitialized_ = false;
+    hookInstalled_ = false;
     SetServiceRunning(false);
-    initialized = false;
+    initialized_ = false;
     return true;
 }
 
 bool ImGuiService::OnTick(uint32_t)
 {
-    if (!initialized) {
+    if (!initialized_) {
         return true;
     }
 
-    EnsureInitialized();
+    if (EnsureInitialized_()) {
+        InitializePanels_();
+    }
     return true;
 }
 
@@ -128,67 +131,77 @@ void* ImGuiService::GetContext() const
 
 bool ImGuiService::RegisterPanel(const ImGuiPanelDesc& desc)
 {
-    if (!desc.render) {
-        LOG_WARN("ImGuiService: rejected panel {} (null render)", desc.panel_id);
+    if (!desc.on_render) {
+        LOG_WARN("ImGuiService: rejected panel {} (null on_render)", desc.id);
         return false;
     }
 
-    auto it = std::find_if(panels.begin(), panels.end(), [&](const PanelEntry& entry) {
-        return entry.desc.panel_id == desc.panel_id;
+    const auto it = std::ranges::find_if(panels_, [&](const PanelEntry& entry) {
+        return entry.desc.id == desc.id;
     });
-    if (it != panels.end()) {
-        LOG_WARN("ImGuiService: rejected panel {} (duplicate id)", desc.panel_id);
+    if (it != panels_.end()) {
+        LOG_WARN("ImGuiService: rejected panel {} (duplicate id)", desc.id);
         return false;
     }
 
-    panels.push_back(PanelEntry{desc});
-    SortPanels();
-    LOG_INFO("ImGuiService: registered panel {} (order={})", desc.panel_id, desc.order);
+    panels_.push_back(PanelEntry{desc, false});
+    if (imguiInitialized_) {
+        InitializePanels_();
+    }
+    SortPanels_();
+    LOG_INFO("ImGuiService: registered panel {} (order={})", desc.id, desc.order);
     return true;
 }
 
-bool ImGuiService::UnregisterPanel(uint32_t panel_id)
+bool ImGuiService::UnregisterPanel(uint32_t panelId)
 {
-    auto it = std::find_if(panels.begin(), panels.end(), [&](const PanelEntry& entry) {
-        return entry.desc.panel_id == panel_id;
+    const auto it = std::ranges::find_if(panels_, [&](const PanelEntry& entry) {
+        return entry.desc.id == panelId;
     });
-    if (it == panels.end()) {
-        LOG_WARN("ImGuiService: unregister failed for panel {}", panel_id);
+    if (it == panels_.end()) {
+        LOG_WARN("ImGuiService: unregister failed for panel {}", panelId);
         return false;
     }
 
-    if (it->desc.on_shutdown) {
-        it->desc.on_shutdown(it->desc.data);
+    if (it->desc.on_unregister) {
+        it->desc.on_unregister(it->desc.data);
     }
 
-    panels.erase(it);
-    LOG_INFO("ImGuiService: unregistered panel {}", panel_id);
+    panels_.erase(it);
+    LOG_INFO("ImGuiService: unregistered panel {}", panelId);
     return true;
 }
 
-bool ImGuiService::SetPanelVisible(uint32_t panel_id, bool visible)
+bool ImGuiService::SetPanelVisible(const uint32_t panelId, const bool visible)
 {
-    auto it = std::find_if(panels.begin(), panels.end(), [&](const PanelEntry& entry) {
-        return entry.desc.panel_id == panel_id;
+    const auto it = std::ranges::find_if(panels_, [&](const PanelEntry& entry) {
+        return entry.desc.id == panelId;
     });
-    if (it == panels.end()) {
+    if (it == panels_.end()) {
         return false;
+    }
+
+    if (it->desc.visible == visible) {
+        return true;
     }
 
     it->desc.visible = visible;
+    if (it->desc.on_visible_changed) {
+        it->desc.on_visible_changed(it->desc.data, visible);
+    }
     return true;
 }
 
-void ImGuiService::RenderFrameThunk(IDirect3DDevice7* device)
+void ImGuiService::RenderFrameThunk_(IDirect3DDevice7* device)
 {
     if (g_instance) {
-        g_instance->RenderFrame(device);
+        g_instance->RenderFrame_(device);
     }
 }
 
-void ImGuiService::RenderFrame(IDirect3DDevice7* device) {
-    static bool loggedFirstRender = false;
-    if (!imguiInitialized || panels.empty()) {
+void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
+    static auto loggedFirstRender = false;
+    if (!imguiInitialized_ || panels_.empty()) {
         return;
     }
     if (!DX7InterfaceHook::s_pD3DX || device != DX7InterfaceHook::s_pD3DX->GetD3DDevice()) {
@@ -197,6 +210,8 @@ void ImGuiService::RenderFrame(IDirect3DDevice7* device) {
     if (!ImGui::GetCurrentContext()) {
         return;
     }
+
+    InitializePanels_();
 
     auto* dd = DX7InterfaceHook::s_pD3DX->GetDD();
     if (!dd || dd->TestCooperativeLevel() != S_OK) {
@@ -207,9 +222,15 @@ void ImGuiService::RenderFrame(IDirect3DDevice7* device) {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    for (const auto& panel : panels) {
-        if (panel.desc.visible && panel.desc.render) {
-            panel.desc.render(panel.desc.data);
+    for (auto& panel : panels_) {
+        if (panel.desc.visible && panel.desc.on_update) {
+            panel.desc.on_update(panel.desc.data);
+        }
+    }
+
+    for (auto& panel : panels_) {
+        if (panel.desc.visible && panel.desc.on_render) {
+            panel.desc.on_render(panel.desc.data);
         }
     }
 
@@ -225,14 +246,14 @@ void ImGuiService::RenderFrame(IDirect3DDevice7* device) {
     ImGui_ImplDX7_RenderDrawData(ImGui::GetDrawData());
 
     if (!loggedFirstRender) {
-        LOG_INFO("ImGuiService: rendered first frame with {} panel(s)", panels.size());
+        LOG_INFO("ImGuiService: rendered first frame with {} panel(s)", panels_.size());
         loggedFirstRender = true;
     }
 }
 
-bool ImGuiService::EnsureInitialized()
+bool ImGuiService::EnsureInitialized_()
 {
-    if (imguiInitialized) {
+    if (imguiInitialized_) {
         return true;
     }
 
@@ -243,17 +264,17 @@ bool ImGuiService::EnsureInitialized()
 
     cIGZGDriver* pDriver = pGS2->GetGDriver();
     if (!pDriver) {
-        if (!warnedNoDriver) {
+        if (!warnedNoDriver_) {
             LOG_WARN("ImGuiService: graphics driver not available yet");
-            warnedNoDriver = true;
+            warnedNoDriver_ = true;
         }
         return false;
     }
 
     if (pDriver->GetGZCLSID() != kSCGDriverDirectX) {
-        if (!warnedNoDriver) {
+        if (!warnedNoDriver_) {
             LOG_WARN("ImGuiService: not a DirectX driver, skipping initialization");
-            warnedNoDriver = true;
+            warnedNoDriver_ = true;
         }
         return false;
     }
@@ -273,9 +294,9 @@ bool ImGuiService::EnsureInitialized()
 
     HWND hwnd = pFrameworkW32->GetMainHWND();
     if (!hwnd || !IsWindow(hwnd)) {
-        if (!warnedMissingWindow) {
+        if (!warnedMissingWindow_) {
             LOG_WARN("ImGuiService: game window not ready yet");
-            warnedMissingWindow = true;
+            warnedMissingWindow_ = true;
         }
         return false;
     }
@@ -285,57 +306,73 @@ bool ImGuiService::EnsureInitialized()
         return false;
     }
 
-    imguiInitialized = true;
-    warnedNoDriver = false;
-    warnedMissingWindow = false;
+    imguiInitialized_ = true;
+    warnedNoDriver_ = false;
+    warnedMissingWindow_ = false;
 
-    if (!InstallWndProcHook(hwnd)) {
+    if (!InstallWndProcHook_(hwnd)) {
         LOG_WARN("ImGuiService: failed to install WndProc hook");
     }
-    DX7InterfaceHook::SetFrameCallback(&ImGuiService::RenderFrameThunk);        
+    DX7InterfaceHook::SetFrameCallback(&ImGuiService::RenderFrameThunk_);
     DX7InterfaceHook::InstallSceneHooks();
     LOG_INFO("ImGuiService: ImGui initialized and scene hooks installed");
     return true;
 }
 
-void ImGuiService::SortPanels()
+void ImGuiService::InitializePanels_()
 {
-    std::sort(panels.begin(), panels.end(), [](const PanelEntry& a, const PanelEntry& b) {
+    if (!imguiInitialized_) {
+        return;
+    }
+
+    for (auto& panel : panels_) {
+        if (!panel.initialized) {
+            if (panel.desc.on_init) {
+                panel.desc.on_init(panel.desc.data);
+            }
+            panel.initialized = true;
+        }
+    }
+}
+
+void ImGuiService::SortPanels_()
+{
+    std::sort(panels_.begin(), panels_.end(), [](const PanelEntry& a, const PanelEntry& b) {
         return a.desc.order < b.desc.order;
     });
 }
 
-bool ImGuiService::InstallWndProcHook(HWND hwnd)
+bool ImGuiService::InstallWndProcHook_(HWND hwnd)
 {
-    if (hookInstalled) {
+    if (hookInstalled_) {
         return true;
     }
 
-    originalWndProc = reinterpret_cast<WNDPROC>(GetWindowLongPtrW(hwnd, GWLP_WNDPROC));
-    if (!originalWndProc) {
+    originalWndProc_ = reinterpret_cast<WNDPROC>(GetWindowLongPtrW(hwnd, GWLP_WNDPROC));
+    if (!originalWndProc_) {
         return false;
     }
 
-    gameWindow = hwnd;
+    gameWindow_ = hwnd;
     if (!SetWindowLongPtrW(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&ImGuiService::WndProcHook))) {
-        originalWndProc = nullptr;
-        gameWindow = nullptr;
+        originalWndProc_ = nullptr;
+        gameWindow_ = nullptr;
         return false;
     }
 
-    hookInstalled = true;
+    hookInstalled_ = true;
     return true;
 }
 
-void ImGuiService::RemoveWndProcHook()
+void ImGuiService::RemoveWndProcHook_()
 {
-    if (hookInstalled && gameWindow && originalWndProc) {
-        SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(originalWndProc));
+    if (hookInstalled_ && gameWindow_ && originalWndProc_) {
+        SetWindowLongPtrW(gameWindow_, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(originalWndProc_));
     }
 
-    hookInstalled = false;
-    originalWndProc = nullptr;
-    gameWindow = nullptr;
+    hookInstalled_ = false;
+    originalWndProc_ = nullptr;
+    gameWindow_ = nullptr;
 }
 
 LRESULT CALLBACK ImGuiService::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -355,8 +392,8 @@ LRESULT CALLBACK ImGuiService::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, L
         }
     }
 
-    if (!g_instance || !g_instance->originalWndProc) {
+    if (!g_instance || !g_instance->originalWndProc_) {
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
-    return CallWindowProcW(g_instance->originalWndProc, hWnd, msg, wParam, lParam);
+    return CallWindowProcW(g_instance->originalWndProc_, hWnd, msg, wParam, lParam);
 }

@@ -1,11 +1,11 @@
 #include "ImGuiService.h"
 
-#include "cRZCOMDllDirector.h"
 #include "cIGZFrameWork.h"
+#include "cRZCOMDllDirector.h"
 #include "utils/Logger.h"
 
 namespace {
-    static constexpr uint32_t kImGuiServiceDirectorID = 0xC17F4B21;
+    constexpr auto kImGuiServiceDirectorID = 0xC17F4B21;
 }
 
 class ImGuiServiceDirector final : public cRZCOMDllDirector
@@ -13,7 +13,7 @@ class ImGuiServiceDirector final : public cRZCOMDllDirector
 public:
     ImGuiServiceDirector() = default;
 
-    uint32_t GetDirectorID() const override {
+    [[nodiscard]] uint32_t GetDirectorID() const override {
         return kImGuiServiceDirectorID;
     }
 

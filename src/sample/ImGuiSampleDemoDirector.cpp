@@ -1,9 +1,9 @@
 #include "cRZCOMDllDirector.h"
 
 #include "cIGZFrameWork.h"
-#include "cIGZImGuiService.h"
 #include "imgui.h"
-#include "ImGuiServiceIds.h"
+#include "public/cIGZImGuiService.h"
+#include "public/ImGuiServiceIds.h"
 #include "utils/Logger.h"
 
 namespace {
@@ -88,10 +88,10 @@ public:
 
         auto* state = new SampleDemoState();
         ImGuiPanelDesc desc{};
-        desc.panel_id = kSampleDemoPanelId;
+        desc.id = kSampleDemoPanelId;
         desc.order = 120;
         desc.visible = true;
-        desc.render = &RenderDemoPanel;
+        desc.on_render = &RenderDemoPanel;
         desc.on_shutdown = &ShutdownSampleDemo;
         desc.data = state;
 

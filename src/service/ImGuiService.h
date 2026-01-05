@@ -3,12 +3,12 @@
 #include <cstdint>
 #include <d3d.h>
 #include <vector>
-
 #include <Windows.h>
 
-#include "cIGZImGuiService.h"
 #include "cRZBaseSystemService.h"
+#include "public/cIGZImGuiService.h"
 
+// ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
 class ImGuiService final : public cRZBaseSystemService, public cIGZImGuiService
 {
 public:
@@ -29,30 +29,33 @@ public:
     [[nodiscard]] uint32_t GetApiVersion() const override;
     [[nodiscard]] void* GetContext() const override;
     bool RegisterPanel(const ImGuiPanelDesc& desc) override;
-    bool UnregisterPanel(uint32_t panel_id) override;
-    bool SetPanelVisible(uint32_t panel_id, bool visible) override;
+    bool UnregisterPanel(uint32_t panelId) override;
+    bool SetPanelVisible(uint32_t panelId, bool visible) override;
 
 private:
     struct PanelEntry
     {
         ImGuiPanelDesc desc;
+        bool initialized;
     };
 
-    static void RenderFrameThunk(IDirect3DDevice7* device);
-    void RenderFrame(IDirect3DDevice7* device);
-    bool EnsureInitialized();
-    void SortPanels();
-    bool InstallWndProcHook(HWND hwnd);
-    void RemoveWndProcHook();
+    static void RenderFrameThunk_(IDirect3DDevice7* device);
+    void RenderFrame_(IDirect3DDevice7* device);
+    bool EnsureInitialized_();
+    void InitializePanels_();
+    void SortPanels_();
+    bool InstallWndProcHook_(HWND hwnd);
+    void RemoveWndProcHook_();
     static LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-    std::vector<PanelEntry> panels;
+private:
+    std::vector<PanelEntry> panels_;
 
-    HWND gameWindow;
-    WNDPROC originalWndProc;
-    bool initialized;
-    bool imguiInitialized;
-    bool hookInstalled;
-    bool warnedNoDriver;
-    bool warnedMissingWindow;
+    HWND gameWindow_;
+    WNDPROC originalWndProc_;
+    bool initialized_;
+    bool imguiInitialized_;
+    bool hookInstalled_;
+    bool warnedNoDriver_;
+    bool warnedMissingWindow_;
 };

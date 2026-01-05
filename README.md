@@ -31,8 +31,44 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 
 - Link your DLL against `imgui.dll` and include `vendor/d3d7imgui/ImGui/imgui.h`.
 - Query the service via `cIGZFrameWork::GetSystemService` with `kImGuiServiceID`
-  and `GZIID_cIGZImGuiService`.
+  and `GZIID_cIGZImGuiService` from `src/public/ImGuiServiceIds.h`.
 - Register a panel with `ImGuiPanelDesc` and render using `ImGui::*`.
+
+## Public API
+
+Client-facing headers live under `src/public`:
+
+- `src/public/cIGZImGuiService.h` (service interface + `ImGuiPanelDesc`)
+- `src/public/ImGuiServiceIds.h` (service IDs and API version)
+- `src/public/ImGuiPanel.h` and `src/public/ImGuiPanelAdapter.h` (optional class-style adapter)
+
+Class-based usage (optional):
+```cpp
+class MyPanel final : public ImGuiPanel {
+public:
+    void OnInit() override {}
+    void OnRender() override {
+        ImGui::Begin("Class Panel");
+        ImGui::TextUnformatted("Hello from a class-based panel.");
+        ImGui::End();
+    }
+};
+
+void RegisterPanel(cIGZFrameWork* fw) {
+    cIGZImGuiService* service = nullptr;
+    if (!fw->GetSystemService(kImGuiServiceID, GZIID_cIGZImGuiService,
+                              reinterpret_cast<void**>(&service))) {
+        return;
+    }
+
+    auto* panel = new MyPanel();
+    ImGuiPanelDesc desc = ImGuiPanelAdapter<MyPanel>::MakeDesc(panel, 0x12345678, 100, true);
+    if (!service->RegisterPanel(desc)) {
+        delete panel;
+    }
+    service->Release();
+}
+```
 
 Example (minimal):
 ```cpp
@@ -50,10 +86,10 @@ void RegisterPanel(cIGZFrameWork* fw) {
     }
 
     ImGuiPanelDesc desc{};
-    desc.panel_id = 0x12345678;
+    desc.id = 0x12345678;
     desc.order = 100;
     desc.visible = true;
-    desc.render = &RenderPanel;
+    desc.on_render = &RenderPanel;
     desc.on_shutdown = nullptr;
     desc.data = nullptr;
     service->RegisterPanel(desc);
@@ -67,7 +103,7 @@ void RegisterPanel(cIGZFrameWork* fw) {
   the tick list via `cIGZFrameWork::AddToTick`. Rendering is driven from the
   DX7 EndScene hook once the D3D interface is available. For more info on Services, 
   see their [gzcom-dll Wiki entry](https://github.com/nsgomez/gzcom-dll/wiki/Service).
-- Panels are registered with a unique `panel_id` and a simple `render(void* data)`
+- Panels are registered with a unique `id` and a simple `on_render(void* data)`
   callback. Use the `data` pointer for per-panel state instead of globals.
 - The ImGui context is owned by the service. Clients should not call
   `ImGui::CreateContext()` or `ImGui::DestroyContext()`. If you need to check
