@@ -253,7 +253,7 @@ add_custom_target(SC4ImGuiAllTargets
 )
 
 # Automatic deployment to SC4 directories
-if(WIN32)
+if(WIN32 AND NOT DEFINED ENV{CI})
     # Try to find SC4 installation directory
     set(SC4_INSTALL_PATHS
             "C:/Program Files (x86)/SimCity 4 Deluxe Edition"
