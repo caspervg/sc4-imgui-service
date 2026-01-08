@@ -8,6 +8,9 @@
 #include "cRZBaseSystemService.h"
 #include "public/cIGZImGuiService.h"
 
+// Forward declaration
+struct IDirectDrawSurface7;
+
 // ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
 class ImGuiService final : public cRZBaseSystemService, public cIGZImGuiService
 {
@@ -35,11 +38,37 @@ public:
     [[nodiscard]] bool IsDeviceReady() const override;
     [[nodiscard]] uint32_t GetDeviceGeneration() const override;
 
+    ImGuiTextureHandle CreateTexture(const ImGuiTextureDesc& desc) override;
+    [[nodiscard]] void* GetTextureID(ImGuiTextureHandle handle) override;
+    void ReleaseTexture(ImGuiTextureHandle handle) override;
+    [[nodiscard]] bool IsTextureValid(ImGuiTextureHandle handle) const override;
+
 private:
     struct PanelEntry
     {
         ImGuiPanelDesc desc;
         bool initialized;
+    };
+
+    struct ManagedTexture
+    {
+        uint32_t id;
+        uint32_t width;
+        uint32_t height;
+        uint32_t creationGeneration;
+        std::vector<uint8_t> sourceData;       // RGBA32 pixel data for recreation
+        IDirectDrawSurface7* surface;          // Can be nullptr if device lost
+        bool needsRecreation;
+        bool useSystemMemory;
+
+        ManagedTexture()
+            : id(0)
+            , width(0)
+            , height(0)
+            , creationGeneration(0)
+            , surface(nullptr)
+            , needsRecreation(false)
+            , useSystemMemory(false) {}
     };
 
     static void RenderFrameThunk_(IDirect3DDevice7* device);
@@ -51,8 +80,15 @@ private:
     void RemoveWndProcHook_();
     static LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+    // Texture management helpers
+    bool CreateSurfaceForTexture_(ManagedTexture& tex);
+    void OnDeviceLost_();
+    void OnDeviceRestored_();
+    void InvalidateAllTextures_();
+
 private:
     std::vector<PanelEntry> panels_;
+    std::vector<ManagedTexture> textures_;
 
     HWND gameWindow_;
     WNDPROC originalWndProc_;
@@ -61,5 +97,7 @@ private:
     bool hookInstalled_;
     bool warnedNoDriver_;
     bool warnedMissingWindow_;
+    bool deviceLost_;
     uint32_t deviceGeneration_;
+    uint32_t nextTextureId_;
 };

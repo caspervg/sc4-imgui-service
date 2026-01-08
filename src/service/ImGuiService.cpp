@@ -3,6 +3,7 @@
 #include "ImGuiService.h"
 
 #include <algorithm>
+#include <ddraw.h>
 
 #include "cIGZFrameWorkW32.h"
 #include "cIGZGraphicSystem2.h"
@@ -96,7 +97,9 @@ ImGuiService::ImGuiService()
     , hookInstalled_(false)
     , warnedNoDriver_(false)
     , warnedMissingWindow_(false)
-    , deviceGeneration_(0) {}
+    , deviceLost_(false)
+    , deviceGeneration_(0)
+    , nextTextureId_(1) {}
 
 ImGuiService::~ImGuiService() {
     if (g_instance == this) {
@@ -146,6 +149,15 @@ bool ImGuiService::Shutdown() {
         }
     }
     panels_.clear();
+
+    // Clean up all textures before shutting down ImGui
+    for (auto& texture : textures_) {
+        if (texture.surface) {
+            texture.surface->Release();
+            texture.surface = nullptr;
+        }
+    }
+    textures_.clear();
 
     RemoveWndProcHook_();
     DX7InterfaceHook::SetFrameCallback(nullptr);
@@ -294,8 +306,19 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
     InitializePanels_();
 
     auto* dd = DX7InterfaceHook::s_pD3DX->GetDD();
-    if (!dd || dd->TestCooperativeLevel() != S_OK) {
+    if (!dd) {
         return;
+    }
+
+    // Check for device loss
+    HRESULT hr = dd->TestCooperativeLevel();
+    if (hr != DD_OK) {
+        if (!deviceLost_) {
+            OnDeviceLost_();
+        }
+        return;  // Skip rendering when device is lost
+    } else if (deviceLost_) {
+        OnDeviceRestored_();
     }
 
     ImGui_ImplDX7_NewFrame();
@@ -474,4 +497,266 @@ LRESULT CALLBACK ImGuiService::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, L
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
     return CallWindowProcW(g_instance->originalWndProc_, hWnd, msg, wParam, lParam);
+}
+
+// Texture management implementation
+
+ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
+    // Validate parameters
+    if (desc.width == 0 || desc.height == 0 || !desc.pixels) {
+        LOG_ERROR("ImGuiService::CreateTexture: invalid parameters (width={}, height={}, pixels={})",
+            desc.width, desc.height, static_cast<const void*>(desc.pixels));
+        return ImGuiTextureHandle{0, 0};
+    }
+
+    if (!IsDeviceReady()) {
+        LOG_WARN("ImGuiService::CreateTexture: device not ready, texture will be created on-demand");
+    }
+
+    // Create managed texture entry
+    ManagedTexture tex;
+    tex.id = nextTextureId_++;
+    tex.width = desc.width;
+    tex.height = desc.height;
+    tex.creationGeneration = deviceGeneration_;
+    tex.useSystemMemory = desc.useSystemMemory;
+    tex.surface = nullptr;
+    tex.needsRecreation = false;
+
+    // Store source pixel data for recreation after device loss
+    const size_t dataSize = static_cast<size_t>(desc.width) * desc.height * 4;  // RGBA32
+    tex.sourceData.resize(dataSize);
+    std::memcpy(tex.sourceData.data(), desc.pixels, dataSize);
+
+    // Attempt initial surface creation
+    if (IsDeviceReady() && !deviceLost_) {
+        if (!CreateSurfaceForTexture_(tex)) {
+            LOG_WARN("ImGuiService::CreateTexture: surface creation failed, will retry later (id={})", tex.id);
+            tex.needsRecreation = true;
+        }
+    } else {
+        tex.needsRecreation = true;
+    }
+
+    textures_.push_back(std::move(tex));
+    LOG_INFO("ImGuiService::CreateTexture: created texture id={} ({}x{}, gen={})",
+        tex.id, desc.width, desc.height, deviceGeneration_);
+
+    return ImGuiTextureHandle{tex.id, deviceGeneration_};
+}
+
+bool ImGuiService::CreateSurfaceForTexture_(ManagedTexture& tex) {
+    if (!IsDeviceReady()) {
+        return false;
+    }
+
+    // Acquire D3D interfaces with RAII cleanup
+    IDirect3DDevice7* d3d = nullptr;
+    IDirectDraw7* dd = nullptr;
+    if (!AcquireD3DInterfaces(&d3d, &dd)) {
+        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: failed to acquire D3D interfaces");
+        return false;
+    }
+
+    // RAII cleanup for interfaces
+    struct D3DCleanup {
+        IDirect3DDevice7* d3d;
+        IDirectDraw7* dd;
+        ~D3DCleanup() {
+            if (d3d) d3d->Release();
+            if (dd) dd->Release();
+        }
+    } cleanup{d3d, dd};
+
+    // Set up surface descriptor
+    DDSURFACEDESC2 ddsd{};
+    ddsd.dwSize = sizeof(ddsd);
+    ddsd.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
+    ddsd.dwWidth = tex.width;
+    ddsd.dwHeight = tex.height;
+    ddsd.ddsCaps.dwCaps = DDSCAPS_TEXTURE;
+
+    // Use video memory or system memory based on flag
+    if (tex.useSystemMemory) {
+        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
+    } else {
+        ddsd.ddsCaps.dwCaps |= DDSCAPS_VIDEOMEMORY;
+    }
+
+    // 32-bit ARGB pixel format
+    ddsd.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
+    ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
+    ddsd.ddpfPixelFormat.dwRGBBitCount = 32;
+    ddsd.ddpfPixelFormat.dwRBitMask = 0x00FF0000;
+    ddsd.ddpfPixelFormat.dwGBitMask = 0x0000FF00;
+    ddsd.ddpfPixelFormat.dwBBitMask = 0x000000FF;
+    ddsd.ddpfPixelFormat.dwRGBAlphaBitMask = 0xFF000000;
+
+    IDirectDrawSurface7* surface = nullptr;
+    HRESULT hr = dd->CreateSurface(&ddsd, &surface, nullptr);
+
+    // Fallback to system memory if video memory is exhausted
+    if (hr == DDERR_OUTOFVIDEOMEMORY && !tex.useSystemMemory) {
+        LOG_WARN("ImGuiService::CreateSurfaceForTexture_: video memory exhausted, falling back to system memory (id={})", tex.id);
+        ddsd.ddsCaps.dwCaps &= ~DDSCAPS_VIDEOMEMORY;
+        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
+        hr = dd->CreateSurface(&ddsd, &surface, nullptr);
+        if (SUCCEEDED(hr)) {
+            tex.useSystemMemory = true;
+        }
+    }
+
+    if (FAILED(hr) || !surface) {
+        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: CreateSurface failed (hr=0x{:08X}, id={})", hr, tex.id);
+        return false;
+    }
+
+    // Lock surface for writing
+    DDSURFACEDESC2 lockDesc{};
+    lockDesc.dwSize = sizeof(lockDesc);
+    hr = surface->Lock(nullptr, &lockDesc, DDLOCK_WAIT | DDLOCK_WRITEONLY, nullptr);
+    if (FAILED(hr)) {
+        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: Lock failed (hr=0x{:08X}, id={})", hr, tex.id);
+        surface->Release();
+        return false;
+    }
+
+    // Copy pixel data row-by-row (respecting lPitch)
+    const auto* srcPixels = reinterpret_cast<const uint8_t*>(tex.sourceData.data());
+    auto* dstPixels = static_cast<uint8_t*>(lockDesc.lpSurface);
+    const uint32_t srcPitch = tex.width * 4;  // RGBA32
+    const uint32_t dstPitch = lockDesc.lPitch;
+
+    for (uint32_t y = 0; y < tex.height; ++y) {
+        std::memcpy(dstPixels + y * dstPitch, srcPixels + y * srcPitch, srcPitch);
+    }
+
+    surface->Unlock(nullptr);
+
+    // Clean up old surface if it exists
+    if (tex.surface) {
+        tex.surface->Release();
+    }
+
+    tex.surface = surface;
+    tex.needsRecreation = false;
+    tex.creationGeneration = deviceGeneration_;
+
+    LOG_INFO("ImGuiService::CreateSurfaceForTexture_: surface created successfully (id={}, gen={})",
+        tex.id, deviceGeneration_);
+    return true;
+}
+
+void* ImGuiService::GetTextureID(ImGuiTextureHandle handle) {
+    // Check device generation first - return nullptr if mismatch
+    if (handle.generation != deviceGeneration_) {
+        return nullptr;
+    }
+
+    // Check device lost flag
+    if (deviceLost_) {
+        return nullptr;
+    }
+
+    // Find texture by ID
+    auto it = std::ranges::find_if(textures_, [&](const ManagedTexture& tex) {
+        return tex.id == handle.id;
+    });
+
+    if (it == textures_.end()) {
+        return nullptr;
+    }
+
+    ManagedTexture& tex = *it;
+
+    // Recreate surface if needed
+    if (tex.needsRecreation || !tex.surface) {
+        if (!CreateSurfaceForTexture_(tex)) {
+            LOG_WARN("ImGuiService::GetTextureID: failed to recreate surface (id={})", tex.id);
+            return nullptr;
+        }
+    }
+
+    // Validate surface is not lost
+    if (tex.surface && tex.surface->IsLost() != DD_OK) {
+        LOG_WARN("ImGuiService::GetTextureID: surface is lost (id={})", tex.id);
+        tex.surface->Release();
+        tex.surface = nullptr;
+        tex.needsRecreation = true;
+        return nullptr;
+    }
+
+    return static_cast<void*>(tex.surface);
+}
+
+void ImGuiService::ReleaseTexture(ImGuiTextureHandle handle) {
+    auto it = std::ranges::find_if(textures_, [&](const ManagedTexture& tex) {
+        return tex.id == handle.id;
+    });
+
+    if (it == textures_.end()) {
+        return;
+    }
+
+    if (it->surface) {
+        it->surface->Release();
+        it->surface = nullptr;
+    }
+
+    LOG_INFO("ImGuiService::ReleaseTexture: released texture (id={})", handle.id);
+    textures_.erase(it);
+}
+
+bool ImGuiService::IsTextureValid(ImGuiTextureHandle handle) const {
+    if (handle.generation != deviceGeneration_) {
+        return false;
+    }
+
+    if (deviceLost_) {
+        return false;
+    }
+
+    const auto it = std::ranges::find_if(textures_, [&](const ManagedTexture& tex) {
+        return tex.id == handle.id;
+    });
+
+    return it != textures_.end();
+}
+
+void ImGuiService::OnDeviceLost_() {
+    deviceLost_ = true;
+
+    // Invalidate all texture surfaces
+    for (auto& tex : textures_) {
+        if (tex.surface) {
+            tex.surface->Release();
+            tex.surface = nullptr;
+        }
+        tex.needsRecreation = true;
+    }
+
+    ImGui_ImplDX7_InvalidateDeviceObjects();
+
+    LOG_WARN("ImGuiService::OnDeviceLost_: device lost, invalidated {} texture(s)", textures_.size());
+}
+
+void ImGuiService::OnDeviceRestored_() {
+    deviceLost_ = false;
+
+    // Increment device generation to invalidate old handles
+    deviceGeneration_ += 1;
+
+    ImGui_ImplDX7_CreateDeviceObjects();
+
+    LOG_INFO("ImGuiService::OnDeviceRestored_: device restored (new gen={}), textures will recreate on-demand", deviceGeneration_);
+}
+
+void ImGuiService::InvalidateAllTextures_() {
+    for (auto& tex : textures_) {
+        if (tex.surface) {
+            tex.surface->Release();
+            tex.surface = nullptr;
+        }
+        tex.needsRecreation = true;
+    }
 }
