@@ -19,6 +19,22 @@ struct ImGuiPanelDesc
 struct IDirectDraw7;
 struct IDirect3DDevice7;
 
+// Texture handle with generation tracking
+struct ImGuiTextureHandle
+{
+    uint32_t id;              // Unique texture ID
+    uint32_t generation;      // Device generation when created
+};
+
+// Texture creation descriptor
+struct ImGuiTextureDesc
+{
+    uint32_t width;           // Texture width in pixels
+    uint32_t height;          // Texture height in pixels
+    const void* pixels;       // RGBA32 source data (required, 4 bytes per pixel)
+    bool useSystemMemory;     // Default: false (prefer video memory)
+};
+
 // ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
 class cIGZImGuiService : public cIGZUnknown
 {
@@ -52,4 +68,25 @@ public:
     // Generation increments when the DX7 device/context is reinitialized.
     // Callers should rebuild cached textures when this changes.
     [[nodiscard]] virtual uint32_t GetDeviceGeneration() const = 0;
+
+    // Creates a managed texture from RGBA32 pixel data.
+    // The service stores source data for automatic recreation after device loss.
+    // Returns a handle with the current device generation.
+    // Thread safety: Must be called from the render thread only.
+    virtual ImGuiTextureHandle CreateTexture(const ImGuiTextureDesc& desc) = 0;
+
+    // Gets a texture ID for use with ImGui::Image().
+    // Returns nullptr if handle is invalid or from a stale device generation.
+    // The texture surface is recreated on-demand if device was lost.
+    // Thread safety: Must be called from the render thread only.
+    [[nodiscard]] virtual void* GetTextureID(ImGuiTextureHandle handle) = 0;
+
+    // Releases a texture and frees associated resources.
+    // Safe to call with invalid handles (no-op).
+    // Thread safety: Must be called from the render thread only.
+    virtual void ReleaseTexture(ImGuiTextureHandle handle) = 0;
+
+    // Checks if a texture handle is valid and matches the current device generation.
+    // Thread safety: Must be called from the render thread only.
+    [[nodiscard]] virtual bool IsTextureValid(ImGuiTextureHandle handle) const = 0;
 };
