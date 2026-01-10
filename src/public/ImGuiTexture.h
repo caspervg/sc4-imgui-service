@@ -12,8 +12,9 @@
 //   myTexture.Create(service, width, height, pixelData);
 //   
 //   // In render loop:
-//   if (void* texId = myTexture.GetID()) {
-//       ImGui::Image(texId, ImVec2(width, height));
+//   Texture2D tex = myTexture.GetTexture();
+//   if (tex.id != 0) {
+//       rlImGuiImageSize(&tex, width, height);
 //   }
 //
 class ImGuiTexture
@@ -78,12 +79,14 @@ public:
         return handle_.id != 0;
     }
 
-    // Gets the texture ID for use with ImGui::Image().
-    // Returns nullptr if texture is invalid or device generation changed.
-    // Automatically detects device generation changes and returns nullptr.
-    void* GetID() {
+    // Gets the raylib texture for use with rlImGuiImage* helpers.
+    // Returns texture.id == 0 if texture is invalid or device generation changed.
+    // Automatically detects device generation changes and returns an invalid texture.
+    Texture2D GetTexture() {
+        Texture2D invalid{};
+        invalid.id = 0;
         if (!service_ || handle_.id == 0) {
-            return nullptr;
+            return invalid;
         }
 
         // Check if device generation changed
@@ -92,10 +95,10 @@ public:
             // Device was reset, texture handle is stale
             handle_.generation = 0;  // Invalidate
             lastKnownGeneration_ = currentGen;  // Update to avoid repeated warnings
-            return nullptr;
+            return invalid;
         }
 
-        return service_->GetTextureID(handle_);
+        return service_->GetTexture(handle_);
     }
 
     // Checks if the texture is valid.

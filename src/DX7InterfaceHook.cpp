@@ -1,9 +1,6 @@
 #include "DX7InterfaceHook.h"
 #include "utils/Logger.h"
 
-#include "imgui.h"
-#include "imgui_impl_dx7.h"
-#include "imgui_impl_win32.h"
 
 #include <atomic>
 #include <Windows.h>
@@ -74,35 +71,12 @@ bool DX7InterfaceHook::CaptureInterface(cIGZGDriver* pDriver)
 
 bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
 {
-    auto* d3dx = s_pD3DX.load(std::memory_order_acquire);
-    if (!d3dx || !hwnd || !IsWindow(hwnd)) {
-        LOG_ERROR("DX7InterfaceHook::InitializeImGui: invalid inputs (hwnd={}, is_window={}, d3dx={})",
+    if (!hwnd || !IsWindow(hwnd)) {
+        LOG_ERROR("DX7InterfaceHook::InitializeImGui: invalid window (hwnd={}, is_window={})",
             static_cast<void*>(hwnd),
-            hwnd ? IsWindow(hwnd) : false,
-            static_cast<void*>(d3dx));
+            hwnd ? IsWindow(hwnd) : false);
         return false;
     }
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
-    ImGui::StyleColorsDark();
-
-    ImGui_ImplWin32_Init(hwnd);
-
-    auto* d3dDevice = d3dx->GetD3DDevice();
-    auto* dd = d3dx->GetDD();
-    if (!d3dDevice || !dd) {
-        LOG_ERROR("DX7InterfaceHook::InitializeImGui: D3D interfaces not ready (device={}, dd={})",
-            static_cast<void*>(d3dDevice),
-            static_cast<void*>(dd));
-        return false;
-    }
-    ImGui_ImplDX7_Init(d3dDevice, dd);
-    ImGui_ImplDX7_CreateDeviceObjects();
-
     return true;
 }
 
@@ -188,9 +162,6 @@ void DX7InterfaceHook::ShutdownImGui()
             }
         }
     }
-    ImGui_ImplDX7_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
     s_FrameCallback.store(nullptr, std::memory_order_release);
     s_OriginalEndScene.store(nullptr, std::memory_order_release);
     s_HookedDevice.store(nullptr, std::memory_order_release);

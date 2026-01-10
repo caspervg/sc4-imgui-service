@@ -19,7 +19,7 @@ cmake --build cmake-build-debug-visual-studio --config Debug
 ## Outputs
 
 Required:
-- `imgui.dll` (deployed to `...\SimCity 4 Deluxe Edition\Apps`)
+- `rlimgui.dll` (deployed to `...\SimCity 4 Deluxe Edition\Apps`)
 - `SC4ImGuiService.dll` (deployed to `...\Documents\SimCity 4\Plugins\`)
 
 Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
@@ -30,7 +30,7 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 
 ## Usage
 
-- Link your DLL against `imgui.dll` and include `vendor/d3d7imgui/ImGui/imgui.h`.
+- Link your DLL against `rlimgui.dll` and include `imgui.h` and `rlImGui.h`.
 - Query the service via `cIGZFrameWork::GetSystemService` with `kImGuiServiceID`
   and `GZIID_cIGZImGuiService` from `src/public/ImGuiServiceIds.h`.
 - Register a panel with `ImGuiPanelDesc` and render using `ImGui::*`.
@@ -134,9 +134,9 @@ class MyPanel {
     
     void OnRender() {
         // Get texture ID - returns nullptr if device was lost
-        void* texId = myTexture_.GetID();
-        if (texId) {
-            ImGui::Image(texId, ImVec2(128, 128));
+        Texture2D tex = myTexture_.GetTexture();
+        if (tex.id != 0) {
+            rlImGuiImageSize(&tex, 128, 128);
         } else {
             ImGui::TextUnformatted("Texture unavailable");
         }
@@ -165,9 +165,9 @@ if (handle.id == 0) {
 }
 
 // In render loop:
-void* texId = service->GetTextureID(handle);
-if (texId) {
-    ImGui::Image(texId, ImVec2(128, 128));
+Texture2D tex = service->GetTexture(handle);
+if (tex.id != 0) {
+    rlImGuiImageSize(&tex, 128, 128);
 }
 
 // When done:
@@ -223,9 +223,9 @@ if (handle.id == 0) {
     return;
 }
 
-// GetTextureID returns nullptr on failure
-void* texId = service->GetTextureID(handle);
-if (!texId) {
+// GetTexture returns texture.id == 0 on failure
+Texture2D tex = service->GetTexture(handle);
+if (tex.id == 0) {
     // Device lost, generation mismatch, or surface recreation failed
     // Check IsTextureValid() to distinguish:
     if (!service->IsTextureValid(handle)) {
@@ -273,7 +273,7 @@ if (service->AcquireD3DInterfaces(&d3d, &dd)) {
 
 ## Notes
 
-- `imgui.dll` must live in the SC4 `Apps` folder to be loaded as a dependency.
+- `rlimgui.dll` must live in the SC4 `Apps` folder to be loaded as a dependency.
 - The service owns the ImGui context and backend initialization. Clients do not
   need to call `ImGui::CreateContext()` or `ImGui::DestroyContext()` or worry about hooking into
   the DirectX7 etc.

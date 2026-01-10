@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cIGZUnknown.h"
+#include "raylib.h"
 
 struct ImGuiPanelDesc
 {
@@ -75,11 +76,11 @@ public:
     // Thread safety: Must be called from the render thread only.
     virtual ImGuiTextureHandle CreateTexture(const ImGuiTextureDesc& desc) = 0;
 
-    // Gets a texture ID for use with ImGui::Image().
-    // Returns nullptr if handle is invalid or from a stale device generation.
-    // The texture surface is recreated on-demand if device was lost.
+    // Gets a raylib texture for use with rlImGuiImage* helpers.
+    // Returns texture.id == 0 if handle is invalid or from a stale device generation.
+    // The texture is recreated on-demand if device was lost.
     // Thread safety: Must be called from the render thread only.
-    [[nodiscard]] virtual void* GetTextureID(ImGuiTextureHandle handle) = 0;
+    [[nodiscard]] virtual Texture2D GetTexture(ImGuiTextureHandle handle) = 0;
 
     // Releases a texture and frees associated resources.
     // Safe to call with invalid handles (no-op).

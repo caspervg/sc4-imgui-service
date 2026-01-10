@@ -8,6 +8,7 @@
 #include "public/cIGZImGuiService.h"
 #include "public/ImGuiServiceIds.h"
 #include "public/ImGuiTexture.h"
+#include "rlImGui.h"
 #include "utils/Logger.h"
 
 #include "imgui.h"
@@ -128,9 +129,9 @@ namespace {
         ImGui::Text("Texture 1 (128x128):");
         ImGui::Text("Valid: %s", sampleData->texture1.IsValid() ? "Yes" : "No");
         
-        void* texId1 = sampleData->texture1.GetID();
-        if (texId1) {
-            ImGui::Image(texId1, ImVec2(128, 128));
+        Texture2D tex1 = sampleData->texture1.GetTexture();
+        if (tex1.id != 0) {
+            rlImGuiImageSize(&tex1, 128, 128);
         } else {
             ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Texture not available");
         }
@@ -141,9 +142,9 @@ namespace {
         ImGui::Text("Texture 2 (64x64):");
         ImGui::Text("Valid: %s", sampleData->texture2.IsValid() ? "Yes" : "No");
         
-        void* texId2 = sampleData->texture2.GetID();
-        if (texId2) {
-            ImGui::Image(texId2, ImVec2(64, 64));
+        Texture2D tex2 = sampleData->texture2.GetTexture();
+        if (tex2.id != 0) {
+            rlImGuiImageSize(&tex2, 64, 64);
         } else {
             ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Texture not available");
         }

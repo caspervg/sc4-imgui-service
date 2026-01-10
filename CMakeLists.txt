@@ -46,33 +46,87 @@ endif()
 
 add_subdirectory(vendor/spdlog)
 
-# ImGui library (vendor/imguid3d7 has no CMakeLists)
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/vendor/d3d7imgui/ImGui)
+include(FetchContent)
 
-# Add all core ImGui .cpp and .h files
-file(GLOB IMGUI_CORE_SOURCES
-        ${IMGUI_DIR}/*.cpp
-        ${IMGUI_DIR}/*.h
-)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
-# Explicitly add the Win32 and DX7 backend files
-set(IMGUI_BACKENDS
-        ${IMGUI_DIR}/imgui_impl_win32.h
-        ${IMGUI_DIR}/imgui_impl_win32.cpp
-        ${IMGUI_DIR}/imgui_impl_dx7.h
-        ${IMGUI_DIR}/imgui_impl_dx7.cpp
-)
-
-add_library(imgui SHARED ${IMGUI_CORE_SOURCES} ${IMGUI_BACKENDS})
-
-target_include_directories(imgui PUBLIC
-        ${IMGUI_DIR}
-)
-target_compile_definitions(imgui PRIVATE IMGUI_DLL_EXPORT)
-
-if(WIN32)
-    target_link_libraries(imgui PRIVATE user32 gdi32 ddraw dxguid)
+find_package(raylib QUIET)
+if (NOT raylib_FOUND)
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+            raylib
+            GIT_REPOSITORY https://github.com/raysan5/raylib.git
+            GIT_TAG 5.5
+            GIT_SHALLOW 1
+    )
+    FetchContent_MakeAvailable(raylib)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 endif()
+set(RAYLIB_INCLUDE_DIRS "")
+if (TARGET raylib)
+    get_target_property(RAYLIB_INCLUDE_DIRS raylib INTERFACE_INCLUDE_DIRECTORIES)
+endif()
+if (NOT RAYLIB_INCLUDE_DIRS AND DEFINED raylib_SOURCE_DIR)
+    set(RAYLIB_INCLUDE_DIRS ${raylib_SOURCE_DIR}/src)
+endif()
+
+set(IMGUI_VERSION 1.92.4-docking)
+set(IMGUI_TAG e7d2d636affeeac1fc7175fb13472ca02d1bc0d1)
+FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG ${IMGUI_TAG}
+)
+FetchContent_MakeAvailable(imgui)
+add_library(imgui SHARED
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_demo.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+)
+add_library(imgui::imgui ALIAS imgui)
+target_include_directories(imgui PUBLIC
+        ${CMAKE_SOURCE_DIR}/src
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+)
+if(WIN32)
+    target_compile_definitions(imgui PRIVATE IMGUI_EXPORTS)
+    target_link_libraries(imgui PRIVATE user32 gdi32)
+endif()
+target_compile_definitions(imgui PRIVATE IMGUI_USER_CONFIG=\"imconfig.h\")
+set_target_properties(imgui PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+set(RLIMGUI_TAG 4d8a61842903978bc42adf3347cd34f4e6524efc)
+if (NOT TARGET rlimgui)
+    FetchContent_Declare(
+            rlimgui
+            GIT_REPOSITORY https://github.com/raylib-extras/rlImGui.git
+            GIT_TAG ${RLIMGUI_TAG}
+    )
+    FetchContent_MakeAvailable(rlimgui)
+    add_library(rlimgui SHARED ${rlimgui_SOURCE_DIR}/rlImGui.cpp)
+    target_include_directories(rlimgui PUBLIC
+            ${rlimgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}
+            ${imgui_SOURCE_DIR}/backends
+            ${RAYLIB_INCLUDE_DIRS}
+            ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_definitions(rlimgui PUBLIC RLIMGUI_ALWAYS_TRACK_MOUSE BUILD_LIBTYPE_SHARED)
+    target_link_libraries(rlimgui PRIVATE imgui raylib)
+    if (WIN32)
+        target_compile_definitions(rlimgui PRIVATE IMGUI_IMPORTS)
+    endif()
+    target_compile_definitions(rlimgui PRIVATE IMGUI_USER_CONFIG=\"imconfig.h\")
+    set_target_properties(rlimgui PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+# ImGui library (docking)
+set(IMGUI_DIR ${imgui_SOURCE_DIR})
+set(IMGUI_BACKENDS_DIR ${imgui_SOURCE_DIR}/backends)
 
 # GZCOM-DLL (vendor/gzcom-dll has sources, build local static lib)
 set(GZCOM_DIR ${CMAKE_SOURCE_DIR}/vendor/gzcom-dll/gzcom-dll)
@@ -122,14 +176,16 @@ target_include_directories(SC4ImGuiService PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/service
         ${IMGUI_DIR}
+        ${RAYLIB_INCLUDE_DIRS}
 )
 
 target_link_libraries(SC4ImGuiService PRIVATE
+        rlimgui
         imgui
+        raylib
         gzcom2
         spdlog
 )
-target_compile_definitions(SC4ImGuiService PRIVATE IMGUI_DLL_IMPORT)
 
 if(WIN32)
     target_link_libraries(SC4ImGuiService PRIVATE kernel32 user32 Version ddraw dxguid)
@@ -146,6 +202,19 @@ if(MSVC)
             MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
     )
 endif()
+if (WIN32)
+    target_compile_definitions(SC4ImGuiService PRIVATE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            MMNOSOUND
+            IMGUI_IMPORTS
+            IMGUI_USER_CONFIG=\"imconfig.h\"
+    )
+    target_link_options(SC4ImGuiService PRIVATE
+            /FORCE:MULTIPLE
+            /IGNORE:4006,4221
+    )
+endif()
 
 # ImGui sample DLL
 set(IMGUI_SAMPLE_SOURCES
@@ -159,14 +228,16 @@ target_include_directories(SC4ImGuiSample PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/service
         ${IMGUI_DIR}
+        ${RAYLIB_INCLUDE_DIRS}
 )
 
 target_link_libraries(SC4ImGuiSample PRIVATE
+        rlimgui
         imgui
+        raylib
         gzcom2
         spdlog
 )
-target_compile_definitions(SC4ImGuiSample PRIVATE IMGUI_DLL_IMPORT)
 
 set_target_properties(SC4ImGuiSample PROPERTIES
         OUTPUT_NAME "SC4ImGuiSample"
@@ -177,6 +248,20 @@ set_target_properties(SC4ImGuiSample PROPERTIES
 if(MSVC)
     set_target_properties(SC4ImGuiSample PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+endif()
+if (WIN32)
+    target_compile_definitions(SC4ImGuiSample PRIVATE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            NOGDI
+            MMNOSOUND
+            IMGUI_IMPORTS
+            IMGUI_USER_CONFIG=\"imconfig.h\"
+    )
+    target_link_options(SC4ImGuiSample PRIVATE
+            /FORCE:MULTIPLE
+            /IGNORE:4006,4221
     )
 endif()
 
@@ -192,15 +277,16 @@ target_include_directories(SC4ImGuiSampleCity PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/service
         ${IMGUI_DIR}
+        ${RAYLIB_INCLUDE_DIRS}
 )
 
 target_link_libraries(SC4ImGuiSampleCity PRIVATE
+        rlimgui
         imgui
+        raylib
         gzcom2
         spdlog
 )
-
-target_compile_definitions(SC4ImGuiSampleCity PRIVATE IMGUI_DLL_IMPORT)
 
 set_target_properties(SC4ImGuiSampleCity PROPERTIES
         OUTPUT_NAME "SC4ImGuiSampleCity"
@@ -211,6 +297,20 @@ set_target_properties(SC4ImGuiSampleCity PROPERTIES
 if(MSVC)
     set_target_properties(SC4ImGuiSampleCity PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+endif()
+if (WIN32)
+    target_compile_definitions(SC4ImGuiSampleCity PRIVATE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            NOGDI
+            MMNOSOUND
+            IMGUI_IMPORTS
+            IMGUI_USER_CONFIG=\"imconfig.h\"
+    )
+    target_link_options(SC4ImGuiSampleCity PRIVATE
+            /FORCE:MULTIPLE
+            /IGNORE:4006,4221
     )
 endif()
 
@@ -226,15 +326,16 @@ target_include_directories(SC4ImGuiSampleDemo PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/service
         ${IMGUI_DIR}
+        ${RAYLIB_INCLUDE_DIRS}
 )
 
 target_link_libraries(SC4ImGuiSampleDemo PRIVATE
+        rlimgui
         imgui
+        raylib
         gzcom2
         spdlog
 )
-
-target_compile_definitions(SC4ImGuiSampleDemo PRIVATE IMGUI_DLL_IMPORT)
 
 set_target_properties(SC4ImGuiSampleDemo PROPERTIES
         OUTPUT_NAME "SC4ImGuiSampleDemo"
@@ -245,6 +346,20 @@ set_target_properties(SC4ImGuiSampleDemo PROPERTIES
 if(MSVC)
     set_target_properties(SC4ImGuiSampleDemo PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+endif()
+if (WIN32)
+    target_compile_definitions(SC4ImGuiSampleDemo PRIVATE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            NOGDI
+            MMNOSOUND
+            IMGUI_IMPORTS
+            IMGUI_USER_CONFIG=\"imconfig.h\"
+    )
+    target_link_options(SC4ImGuiSampleDemo PRIVATE
+            /FORCE:MULTIPLE
+            /IGNORE:4006,4221
     )
 endif()
 
@@ -260,15 +375,16 @@ target_include_directories(SC4ImGuiTextureSample PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/service
         ${IMGUI_DIR}
+        ${RAYLIB_INCLUDE_DIRS}
 )
 
 target_link_libraries(SC4ImGuiTextureSample PRIVATE
+        rlimgui
         imgui
+        raylib
         gzcom2
         spdlog
 )
-
-target_compile_definitions(SC4ImGuiTextureSample PRIVATE IMGUI_DLL_IMPORT)
 
 set_target_properties(SC4ImGuiTextureSample PROPERTIES
         OUTPUT_NAME "SC4ImGuiTextureSample"
@@ -281,9 +397,23 @@ if(MSVC)
             MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
     )
 endif()
+if (WIN32)
+    target_compile_definitions(SC4ImGuiTextureSample PRIVATE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            NOGDI
+            MMNOSOUND
+            IMGUI_IMPORTS
+            IMGUI_USER_CONFIG=\"imconfig.h\"
+    )
+    target_link_options(SC4ImGuiTextureSample PRIVATE
+            /FORCE:MULTIPLE
+            /IGNORE:4006,4221
+    )
+endif()
 
 add_custom_target(SC4ImGuiAllTargets
-        DEPENDS imgui SC4ImGuiService SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample
+        DEPENDS rlimgui SC4ImGuiService SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample
 )
 
 # Automatic deployment to SC4 directories
@@ -311,6 +441,27 @@ if(WIN32 AND NOT DEFINED ENV{CI})
     if(SC4_INSTALL_DIR)
         message(STATUS "Found SC4 installation at: ${SC4_INSTALL_DIR}")
 
+        add_custom_command(TARGET rlimgui POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_INSTALL_DIR}/Apps"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:rlimgui>
+                "${SC4_INSTALL_DIR}/Apps/"
+                COMMENT "Deploying rlimgui.dll to Apps folder"
+        )
+        if (TARGET raylib)
+            set(RAYLIB_TARGET_NAME raylib)
+        elseif (TARGET raylib::raylib)
+            set(RAYLIB_TARGET_NAME raylib::raylib)
+        endif()
+        if (RAYLIB_TARGET_NAME)
+            add_custom_command(TARGET SC4ImGuiService POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_INSTALL_DIR}/Apps"
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:${RAYLIB_TARGET_NAME}>
+                    "${SC4_INSTALL_DIR}/Apps/"
+                    COMMENT "Deploying raylib.dll to Apps folder"
+            )
+        endif()
         add_custom_command(TARGET imgui POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_INSTALL_DIR}/Apps"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -360,6 +511,8 @@ if(WIN32 AND NOT DEFINED ENV{CI})
         )
 
         message(STATUS "Deployment targets configured:")
+        message(STATUS "  - rlimgui.dll -> ${SC4_INSTALL_DIR}/Apps/")
+        message(STATUS "  - raylib.dll -> ${SC4_INSTALL_DIR}/Apps/")
         message(STATUS "  - imgui.dll -> ${SC4_INSTALL_DIR}/Apps/")
         message(STATUS "  - SC4ImGuiService.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4ImGuiSample.dll -> ${SC4_PLUGINS_DIR}/")

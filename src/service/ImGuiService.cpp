@@ -4,8 +4,11 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <ddraw.h>
+#include <imgui.h>
 #include <ranges>
+#include <windowsx.h>
 #include <winerror.h>
 
 #include "cIGZFrameWorkW32.h"
@@ -14,83 +17,406 @@
 #include "cRZCOMDllDirector.h"
 #include "DX7InterfaceHook.h"
 #include "GZServPtrs.h"
-#include "imgui_impl_dx7.h"
-#include "imgui_impl_win32.h"
+#include "rlImGui.h"
 #include "public/ImGuiServiceIds.h"
 #include "utils/Logger.h"
+
+struct RaylibOverlay {
+    bool initialized = false;
+    int width = 0;
+    int height = 0;
+    RenderTexture2D renderTarget{};
+    HWND window = nullptr;
+    IDirectDrawSurface7* overlaySurface = nullptr;
+    uint32_t overlaySurfaceGeneration = 0;
+    std::chrono::steady_clock::time_point lastFrameTime{};
+    POINT origin{};
+    bool hasWindowOrigin = false;
+};
 
 namespace {
     std::atomic<ImGuiService*> g_instance{nullptr};
     std::atomic<DWORD> g_renderThreadId{0};
 
-    struct Dx7ImGuiStateRestore {
-        IDirect3DDevice7* device;
-        bool hasStage0Coord;
-        bool hasStage0Transform;
-        bool hasStage1Coord;
-        bool hasStage1Transform;
-        bool hasAlphaTestEnable;
-        DWORD stage0Coord;
-        DWORD stage0Transform;
-        DWORD stage1Coord;
-        DWORD stage1Transform;
-        DWORD alphaTestEnable;
+    // Convert Windows virtual key to ImGui key
+    ImGuiKey ImGui_ImplWin32_VirtualKeyToImGuiKey(int vk, bool isExtended) {
+        switch (vk) {
+            case VK_TAB: return ImGuiKey_Tab;
+            case VK_LEFT: return ImGuiKey_LeftArrow;
+            case VK_RIGHT: return ImGuiKey_RightArrow;
+            case VK_UP: return ImGuiKey_UpArrow;
+            case VK_DOWN: return ImGuiKey_DownArrow;
+            case VK_PRIOR: return ImGuiKey_PageUp;
+            case VK_NEXT: return ImGuiKey_PageDown;
+            case VK_HOME: return ImGuiKey_Home;
+            case VK_END: return ImGuiKey_End;
+            case VK_INSERT: return ImGuiKey_Insert;
+            case VK_DELETE: return ImGuiKey_Delete;
+            case VK_BACK: return ImGuiKey_Backspace;
+            case VK_SPACE: return ImGuiKey_Space;
+            case VK_RETURN: return isExtended ? ImGuiKey_KeypadEnter : ImGuiKey_Enter;
+            case VK_ESCAPE: return ImGuiKey_Escape;
+            case VK_OEM_7: return ImGuiKey_Apostrophe;
+            case VK_OEM_COMMA: return ImGuiKey_Comma;
+            case VK_OEM_MINUS: return ImGuiKey_Minus;
+            case VK_OEM_PERIOD: return ImGuiKey_Period;
+            case VK_OEM_2: return ImGuiKey_Slash;
+            case VK_OEM_1: return ImGuiKey_Semicolon;
+            case VK_OEM_PLUS: return ImGuiKey_Equal;
+            case VK_OEM_4: return ImGuiKey_LeftBracket;
+            case VK_OEM_5: return ImGuiKey_Backslash;
+            case VK_OEM_6: return ImGuiKey_RightBracket;
+            case VK_OEM_3: return ImGuiKey_GraveAccent;
+            case VK_CAPITAL: return ImGuiKey_CapsLock;
+            case VK_SCROLL: return ImGuiKey_ScrollLock;
+            case VK_NUMLOCK: return ImGuiKey_NumLock;
+            case VK_SNAPSHOT: return ImGuiKey_PrintScreen;
+            case VK_PAUSE: return ImGuiKey_Pause;
+            case VK_NUMPAD0: return ImGuiKey_Keypad0;
+            case VK_NUMPAD1: return ImGuiKey_Keypad1;
+            case VK_NUMPAD2: return ImGuiKey_Keypad2;
+            case VK_NUMPAD3: return ImGuiKey_Keypad3;
+            case VK_NUMPAD4: return ImGuiKey_Keypad4;
+            case VK_NUMPAD5: return ImGuiKey_Keypad5;
+            case VK_NUMPAD6: return ImGuiKey_Keypad6;
+            case VK_NUMPAD7: return ImGuiKey_Keypad7;
+            case VK_NUMPAD8: return ImGuiKey_Keypad8;
+            case VK_NUMPAD9: return ImGuiKey_Keypad9;
+            case VK_DECIMAL: return ImGuiKey_KeypadDecimal;
+            case VK_DIVIDE: return ImGuiKey_KeypadDivide;
+            case VK_MULTIPLY: return ImGuiKey_KeypadMultiply;
+            case VK_SUBTRACT: return ImGuiKey_KeypadSubtract;
+            case VK_ADD: return ImGuiKey_KeypadAdd;
+            case VK_LSHIFT: return ImGuiKey_LeftShift;
+            case VK_LCONTROL: return ImGuiKey_LeftCtrl;
+            case VK_LMENU: return ImGuiKey_LeftAlt;
+            case VK_LWIN: return ImGuiKey_LeftSuper;
+            case VK_RSHIFT: return ImGuiKey_RightShift;
+            case VK_RCONTROL: return ImGuiKey_RightCtrl;
+            case VK_RMENU: return ImGuiKey_RightAlt;
+            case VK_RWIN: return ImGuiKey_RightSuper;
+            case VK_APPS: return ImGuiKey_Menu;
+            case '0': return ImGuiKey_0;
+            case '1': return ImGuiKey_1;
+            case '2': return ImGuiKey_2;
+            case '3': return ImGuiKey_3;
+            case '4': return ImGuiKey_4;
+            case '5': return ImGuiKey_5;
+            case '6': return ImGuiKey_6;
+            case '7': return ImGuiKey_7;
+            case '8': return ImGuiKey_8;
+            case '9': return ImGuiKey_9;
+            case 'A': return ImGuiKey_A;
+            case 'B': return ImGuiKey_B;
+            case 'C': return ImGuiKey_C;
+            case 'D': return ImGuiKey_D;
+            case 'E': return ImGuiKey_E;
+            case 'F': return ImGuiKey_F;
+            case 'G': return ImGuiKey_G;
+            case 'H': return ImGuiKey_H;
+            case 'I': return ImGuiKey_I;
+            case 'J': return ImGuiKey_J;
+            case 'K': return ImGuiKey_K;
+            case 'L': return ImGuiKey_L;
+            case 'M': return ImGuiKey_M;
+            case 'N': return ImGuiKey_N;
+            case 'O': return ImGuiKey_O;
+            case 'P': return ImGuiKey_P;
+            case 'Q': return ImGuiKey_Q;
+            case 'R': return ImGuiKey_R;
+            case 'S': return ImGuiKey_S;
+            case 'T': return ImGuiKey_T;
+            case 'U': return ImGuiKey_U;
+            case 'V': return ImGuiKey_V;
+            case 'W': return ImGuiKey_W;
+            case 'X': return ImGuiKey_X;
+            case 'Y': return ImGuiKey_Y;
+            case 'Z': return ImGuiKey_Z;
+            case VK_F1: return ImGuiKey_F1;
+            case VK_F2: return ImGuiKey_F2;
+            case VK_F3: return ImGuiKey_F3;
+            case VK_F4: return ImGuiKey_F4;
+            case VK_F5: return ImGuiKey_F5;
+            case VK_F6: return ImGuiKey_F6;
+            case VK_F7: return ImGuiKey_F7;
+            case VK_F8: return ImGuiKey_F8;
+            case VK_F9: return ImGuiKey_F9;
+            case VK_F10: return ImGuiKey_F10;
+            case VK_F11: return ImGuiKey_F11;
+            case VK_F12: return ImGuiKey_F12;
+            default: return ImGuiKey_None;
+        }
+    }
 
-        explicit Dx7ImGuiStateRestore(IDirect3DDevice7* deviceIn)
+    POINT GetCursorHotspot_() {
+        POINT hotspot{};
+        CURSORINFO cursorInfo{};
+        cursorInfo.cbSize = sizeof(cursorInfo);
+        if (!GetCursorInfo(&cursorInfo) || !(cursorInfo.flags & CURSOR_SHOWING)) {
+            return hotspot;
+        }
+        ICONINFO iconInfo{};
+        if (!GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
+            return hotspot;
+        }
+        hotspot.x = iconInfo.xHotspot;
+        hotspot.y = iconInfo.yHotspot;
+        if (iconInfo.hbmMask) {
+            DeleteObject(iconInfo.hbmMask);
+        }
+        if (iconInfo.hbmColor) {
+            DeleteObject(iconInfo.hbmColor);
+        }
+        return hotspot;
+    }
+
+    struct Dx7OverlayStateRestore {
+        IDirect3DDevice7* device;
+        bool hasAlphaBlend;
+        bool hasSrcBlend;
+        bool hasDstBlend;
+        bool hasZEnable;
+        bool hasZWrite;
+        bool hasCullMode;
+        bool hasLighting;
+        bool hasShade;
+        bool hasFog;
+        bool hasClipping;
+        bool hasAlphaTest;
+        DWORD rsAlphaBlend;
+        DWORD rsSrcBlend;
+        DWORD rsDstBlend;
+        DWORD rsZEnable;
+        DWORD rsZWrite;
+        DWORD rsCullMode;
+        DWORD rsLighting;
+        DWORD rsShade;
+        DWORD rsFog;
+        DWORD rsClipping;
+        DWORD rsAlphaTest;
+        IDirectDrawSurface7* tex0;
+        bool hasTss0ColorOp;
+        bool hasTss0ColorArg1;
+        bool hasTss0ColorArg2;
+        bool hasTss0AlphaOp;
+        bool hasTss0AlphaArg1;
+        bool hasTss0AlphaArg2;
+        bool hasTss1ColorOp;
+        bool hasTss1AlphaOp;
+        bool hasTss0MinFilter;
+        bool hasTss0MagFilter;
+        bool hasTss0MipFilter;
+        bool hasTss0AddressU;
+        bool hasTss0AddressV;
+        DWORD tss0ColorOp;
+        DWORD tss0ColorArg1;
+        DWORD tss0ColorArg2;
+        DWORD tss0AlphaOp;
+        DWORD tss0AlphaArg1;
+        DWORD tss0AlphaArg2;
+        DWORD tss1ColorOp;
+        DWORD tss1AlphaOp;
+        DWORD tss0MinFilter;
+        DWORD tss0MagFilter;
+        DWORD tss0MipFilter;
+        DWORD tss0AddressU;
+        DWORD tss0AddressV;
+
+        explicit Dx7OverlayStateRestore(IDirect3DDevice7* deviceIn)
             : device(deviceIn)
-            , hasStage0Coord(false)
-            , hasStage0Transform(false)
-            , hasStage1Coord(false)
-            , hasStage1Transform(false)
-            , hasAlphaTestEnable(false)
-            , stage0Coord(0)
-            , stage0Transform(0)
-            , stage1Coord(0)
-            , stage1Transform(0)
-            , alphaTestEnable(0) {
+            , hasAlphaBlend(false)
+            , hasSrcBlend(false)
+            , hasDstBlend(false)
+            , hasZEnable(false)
+            , hasZWrite(false)
+            , hasCullMode(false)
+            , hasLighting(false)
+            , hasShade(false)
+            , hasFog(false)
+            , hasClipping(false)
+            , hasAlphaTest(false)
+            , rsAlphaBlend(0)
+            , rsSrcBlend(0)
+            , rsDstBlend(0)
+            , rsZEnable(0)
+            , rsZWrite(0)
+            , rsCullMode(0)
+            , rsLighting(0)
+            , rsShade(0)
+            , rsFog(0)
+            , rsClipping(0)
+            , rsAlphaTest(0)
+            , tex0(nullptr)
+            , hasTss0ColorOp(false)
+            , hasTss0ColorArg1(false)
+            , hasTss0ColorArg2(false)
+            , hasTss0AlphaOp(false)
+            , hasTss0AlphaArg1(false)
+            , hasTss0AlphaArg2(false)
+            , hasTss1ColorOp(false)
+            , hasTss1AlphaOp(false)
+            , hasTss0MinFilter(false)
+            , hasTss0MagFilter(false)
+            , hasTss0MipFilter(false)
+            , hasTss0AddressU(false)
+            , hasTss0AddressV(false)
+            , tss0ColorOp(0)
+            , tss0ColorArg1(0)
+            , tss0ColorArg2(0)
+            , tss0AlphaOp(0)
+            , tss0AlphaArg1(0)
+            , tss0AlphaArg2(0)
+            , tss1ColorOp(0)
+            , tss1AlphaOp(0)
+            , tss0MinFilter(0)
+            , tss0MagFilter(0)
+            , tss0MipFilter(0)
+            , tss0AddressU(0)
+            , tss0AddressV(0) {
             if (!device) {
                 return;
             }
-            hasStage0Coord = SUCCEEDED(device->GetTextureStageState(
-                0, D3DTSS_TEXCOORDINDEX, &stage0Coord));
-            hasStage0Transform = SUCCEEDED(device->GetTextureStageState(
-                0, D3DTSS_TEXTURETRANSFORMFLAGS, &stage0Transform));
-            hasStage1Coord = SUCCEEDED(device->GetTextureStageState(
-                1, D3DTSS_TEXCOORDINDEX, &stage1Coord));
-            hasStage1Transform = SUCCEEDED(device->GetTextureStageState(
-                1, D3DTSS_TEXTURETRANSFORMFLAGS, &stage1Transform));
-            hasAlphaTestEnable = SUCCEEDED(
-                device->GetRenderState(D3DRENDERSTATE_ALPHATESTENABLE,
-                    &alphaTestEnable));
+            hasAlphaBlend = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &rsAlphaBlend));
+            hasSrcBlend = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_SRCBLEND, &rsSrcBlend));
+            hasDstBlend = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_DESTBLEND, &rsDstBlend));
+            hasZEnable = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_ZENABLE, &rsZEnable));
+            hasZWrite = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_ZWRITEENABLE, &rsZWrite));
+            hasCullMode = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_CULLMODE, &rsCullMode));
+            hasLighting = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_LIGHTING, &rsLighting));
+            hasShade = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_SHADEMODE, &rsShade));
+            hasFog = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_FOGENABLE, &rsFog));
+            hasClipping = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_CLIPPING, &rsClipping));
+            hasAlphaTest = SUCCEEDED(
+                device->GetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, &rsAlphaTest));
+            if (SUCCEEDED(device->GetTexture(0, &tex0))) {
+                if (!tex0) {
+                    tex0 = nullptr;
+                }
+            }
+            hasTss0ColorOp = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_COLOROP, &tss0ColorOp));
+            hasTss0ColorArg1 = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_COLORARG1, &tss0ColorArg1));
+            hasTss0ColorArg2 = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_COLORARG2, &tss0ColorArg2));
+            hasTss0AlphaOp = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_ALPHAOP, &tss0AlphaOp));
+            hasTss0AlphaArg1 = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_ALPHAARG1, &tss0AlphaArg1));
+            hasTss0AlphaArg2 = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_ALPHAARG2, &tss0AlphaArg2));
+            hasTss1ColorOp = SUCCEEDED(
+                device->GetTextureStageState(1, D3DTSS_COLOROP, &tss1ColorOp));
+            hasTss1AlphaOp = SUCCEEDED(
+                device->GetTextureStageState(1, D3DTSS_ALPHAOP, &tss1AlphaOp));
+            hasTss0MinFilter = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_MINFILTER, &tss0MinFilter));
+            hasTss0MagFilter = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_MAGFILTER, &tss0MagFilter));
+            hasTss0MipFilter = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_MIPFILTER, &tss0MipFilter));
+            hasTss0AddressU = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_ADDRESSU, &tss0AddressU));
+            hasTss0AddressV = SUCCEEDED(
+                device->GetTextureStageState(0, D3DTSS_ADDRESSV, &tss0AddressV));
         }
 
-        ~Dx7ImGuiStateRestore() {
+        ~Dx7OverlayStateRestore() {
             if (!device) {
                 return;
             }
-            if (hasStage0Coord) {
-                device->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, stage0Coord);
+            if (hasAlphaBlend) {
+                device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, rsAlphaBlend);
             }
-            if (hasStage0Transform) {
-                device->SetTextureStageState(
-                    0, D3DTSS_TEXTURETRANSFORMFLAGS, stage0Transform);
+            if (hasSrcBlend) {
+                device->SetRenderState(D3DRENDERSTATE_SRCBLEND, rsSrcBlend);
             }
-            if (hasStage1Coord) {
-                device->SetTextureStageState(1, D3DTSS_TEXCOORDINDEX, stage1Coord);
+            if (hasDstBlend) {
+                device->SetRenderState(D3DRENDERSTATE_DESTBLEND, rsDstBlend);
             }
-            if (hasStage1Transform) {
-                device->SetTextureStageState(
-                    1, D3DTSS_TEXTURETRANSFORMFLAGS, stage1Transform);
+            if (hasZEnable) {
+                device->SetRenderState(D3DRENDERSTATE_ZENABLE, rsZEnable);
             }
-            if (hasAlphaTestEnable) {
-                device->SetRenderState(
-                    D3DRENDERSTATE_ALPHATESTENABLE, alphaTestEnable);
+            if (hasZWrite) {
+                device->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, rsZWrite);
+            }
+            if (hasCullMode) {
+                device->SetRenderState(D3DRENDERSTATE_CULLMODE, rsCullMode);
+            }
+            if (hasLighting) {
+                device->SetRenderState(D3DRENDERSTATE_LIGHTING, rsLighting);
+            }
+            if (hasShade) {
+                device->SetRenderState(D3DRENDERSTATE_SHADEMODE, rsShade);
+            }
+            if (hasFog) {
+                device->SetRenderState(D3DRENDERSTATE_FOGENABLE, rsFog);
+            }
+            if (hasClipping) {
+                device->SetRenderState(D3DRENDERSTATE_CLIPPING, rsClipping);
+            }
+            if (hasAlphaTest) {
+                device->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, rsAlphaTest);
+            }
+            if (tex0) {
+                device->SetTexture(0, tex0);
+                tex0->Release();
+            } else {
+                device->SetTexture(0, nullptr);
+            }
+            if (hasTss0ColorOp) {
+                device->SetTextureStageState(0, D3DTSS_COLOROP, tss0ColorOp);
+            }
+            if (hasTss0ColorArg1) {
+                device->SetTextureStageState(0, D3DTSS_COLORARG1, tss0ColorArg1);
+            }
+            if (hasTss0ColorArg2) {
+                device->SetTextureStageState(0, D3DTSS_COLORARG2, tss0ColorArg2);
+            }
+            if (hasTss0AlphaOp) {
+                device->SetTextureStageState(0, D3DTSS_ALPHAOP, tss0AlphaOp);
+            }
+            if (hasTss0AlphaArg1) {
+                device->SetTextureStageState(0, D3DTSS_ALPHAARG1, tss0AlphaArg1);
+            }
+            if (hasTss0AlphaArg2) {
+                device->SetTextureStageState(0, D3DTSS_ALPHAARG2, tss0AlphaArg2);
+            }
+            if (hasTss1ColorOp) {
+                device->SetTextureStageState(1, D3DTSS_COLOROP, tss1ColorOp);
+            }
+            if (hasTss1AlphaOp) {
+                device->SetTextureStageState(1, D3DTSS_ALPHAOP, tss1AlphaOp);
+            }
+            if (hasTss0MinFilter) {
+                device->SetTextureStageState(0, D3DTSS_MINFILTER, tss0MinFilter);
+            }
+            if (hasTss0MagFilter) {
+                device->SetTextureStageState(0, D3DTSS_MAGFILTER, tss0MagFilter);
+            }
+            if (hasTss0MipFilter) {
+                device->SetTextureStageState(0, D3DTSS_MIPFILTER, tss0MipFilter);
+            }
+            if (hasTss0AddressU) {
+                device->SetTextureStageState(0, D3DTSS_ADDRESSU, tss0AddressU);
+            }
+            if (hasTss0AddressV) {
+                device->SetTextureStageState(0, D3DTSS_ADDRESSV, tss0AddressV);
             }
         }
     };
-}
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+}
 
 ImGuiService::ImGuiService()
     : cRZBaseSystemService(kImGuiServiceID, 0)
@@ -159,11 +485,19 @@ bool ImGuiService::Shutdown() {
     // Clean up all textures before shutting down ImGui
     {
         std::lock_guard textureLock(texturesMutex_);
+        const bool canUnload = raylib_ && raylib_->initialized;
         for (auto& texture : textures_ | std::views::values) {
-            if (texture.surface) {
-                texture.surface->Release();
-                texture.surface = nullptr;
+            if (canUnload && texture.hasTexture && texture.textureId != 0) {
+                Texture2D tex{};
+                tex.id = texture.textureId;
+                tex.width = static_cast<int>(texture.width);
+                tex.height = static_cast<int>(texture.height);
+                tex.mipmaps = 1;
+                tex.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+                UnloadTexture(tex);
             }
+            texture.textureId = 0;
+            texture.hasTexture = false;
         }
         textures_.clear();
     }
@@ -171,6 +505,7 @@ bool ImGuiService::Shutdown() {
     RemoveWndProcHook_();
     DX7InterfaceHook::SetFrameCallback(nullptr);
     DX7InterfaceHook::ShutdownImGui();
+    ShutdownRaylib_();
 
     imguiInitialized_ = false;
     hookInstalled_ = false;
@@ -204,6 +539,10 @@ uint32_t ImGuiService::GetApiVersion() const {
 }
 
 void* ImGuiService::GetContext() const {
+    auto* self = const_cast<ImGuiService*>(this);
+    if (!self->imguiInitialized_) {
+        self->EnsureInitialized_();
+    }
     return ImGui::GetCurrentContext();
 }
 
@@ -368,9 +707,44 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
         OnDeviceRestored_();
     }
 
-    ImGui_ImplWin32_NewFrame();
-    ImGui_ImplDX7_NewFrame();
-    ImGui::NewFrame();
+    if (!AnyPanelVisible_()) {
+        return;
+    }
+
+    if (!EnsureRaylibTarget_(gameWindow_)) {
+        return;
+    }
+    if (!IsWindowReady() || GetWindowHandle() == nullptr) {
+        LOG_WARN("ImGuiService::RenderFrame_: raylib window not ready");        
+        return;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    float deltaSeconds = 0.0f;
+    if (raylib_) {
+        if (raylib_->lastFrameTime.time_since_epoch().count() == 0) {
+            deltaSeconds = 1.0f / 60.0f;
+        } else {
+            deltaSeconds = std::chrono::duration<float>(now - raylib_->lastFrameTime).count();
+        }
+        raylib_->lastFrameTime = now;
+    }
+
+    BeginDrawing();
+    BeginTextureMode(raylib_->renderTarget);
+    ClearBackground({0, 0, 0, 0});
+
+    // Custom ImGui frame setup - skip rlImGui's input processing since we feed input directly from WndProc
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        // Set display size (raylib render target size)
+        io.DisplaySize = ImVec2(static_cast<float>(raylib_->width), static_cast<float>(raylib_->height));
+        io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+        // Set delta time
+        io.DeltaTime = deltaSeconds > 0.0f ? deltaSeconds : 1.0f / 60.0f;
+        // Start new ImGui frame (input already fed from WndProc)
+        ImGui::NewFrame();
+    }
 
     {
         std::lock_guard lock(panelsMutex_);
@@ -387,20 +761,13 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
         }
     }
 
-    // Preserve game render state that we override for ImGui's draw pass.
-    Dx7ImGuiStateRestore stateRestore(device);
+    rlImGuiEnd();
+    EndTextureMode();
+    EndDrawing();
 
-    // Reset texture coordinate generation/transform state that can be left
-    // dirty by the game and cause garbled font sampling by the ImGui backend.
-    device->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
-    device->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
-    device->SetTextureStageState(1, D3DTSS_TEXCOORDINDEX, 0);
-    device->SetTextureStageState(1, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
-    device->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, FALSE);
-
-    ImGui::EndFrame();
-    ImGui::Render();
-    ImGui_ImplDX7_RenderDrawData(ImGui::GetDrawData());
+    if (!UploadRaylibFrame_(device, dd)) {
+        return;
+    }
 
     if (!loggedFirstRender) {
         LOG_INFO("ImGuiService: rendered first frame with {} panel(s)", panels_.size());
@@ -465,8 +832,8 @@ bool ImGuiService::EnsureInitialized_() {
         return false;
     }
 
-    if (!DX7InterfaceHook::InitializeImGui(hwnd)) {
-        LOG_ERROR("ImGuiService: failed to initialize ImGui backends");
+    if (!InitializeRaylib_(hwnd)) {
+        LOG_ERROR("ImGuiService: failed to initialize raylib ImGui renderer");
         return false;
     }
 
@@ -518,7 +885,6 @@ bool ImGuiService::InstallWndProcHook_(HWND hwnd) {
     gameWindow_ = hwnd;
     if (!SetWindowLongPtrW(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&ImGuiService::WndProcHook))) {
         originalWndProc_ = nullptr;
-        gameWindow_ = nullptr;
         return false;
     }
 
@@ -537,26 +903,113 @@ void ImGuiService::RemoveWndProcHook_() {
 }
 
 LRESULT CALLBACK ImGuiService::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (ImGui::GetCurrentContext() != nullptr) {
-        LRESULT imguiResult = ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
-        if (imguiResult) {
-            return imguiResult;
-        }
-
-        ImGuiIO& io = ImGui::GetIO();
-        if ((msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) && io.WantCaptureMouse) {
-            return 0;
-        }
-        if (((msg >= WM_KEYFIRST && msg <= WM_KEYLAST) || msg == WM_CHAR) && io.WantCaptureKeyboard) {
-            return 0;
-        }
-    }
-
     auto* instance = g_instance.load(std::memory_order_acquire);
-    if (!instance || !instance->originalWndProc_) {
-        return DefWindowProcW(hWnd, msg, wParam, lParam);
+    ImGuiContext* imguiCtx = ImGui::GetCurrentContext();
+
+    // Feed input directly to ImGui's IO - bypass raylib entirely
+    bool imguiHandled = false;
+    if (imguiCtx && instance && instance->AnyPanelVisible_()) {
+        ImGuiIO& io = ImGui::GetIO();
+
+        switch (msg) {
+            // Mouse position
+            case WM_MOUSEMOVE: {
+                POINT pt;
+                pt.x = GET_X_LPARAM(lParam);
+                pt.y = GET_Y_LPARAM(lParam);
+                io.AddMousePosEvent(static_cast<float>(pt.x), static_cast<float>(pt.y));
+                break;
+            }
+
+            // Mouse buttons
+            case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK:
+                io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+            case WM_LBUTTONUP:
+                io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+            case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK:
+                io.AddMouseButtonEvent(ImGuiMouseButton_Right, true);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+            case WM_RBUTTONUP:
+                io.AddMouseButtonEvent(ImGuiMouseButton_Right, false);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+            case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
+                io.AddMouseButtonEvent(ImGuiMouseButton_Middle, true);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+            case WM_MBUTTONUP:
+                io.AddMouseButtonEvent(ImGuiMouseButton_Middle, false);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+
+            // Mouse wheel
+            case WM_MOUSEWHEEL:
+                io.AddMouseWheelEvent(0.0f, static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / WHEEL_DELTA);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+            case WM_MOUSEHWHEEL:
+                io.AddMouseWheelEvent(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / WHEEL_DELTA, 0.0f);
+                imguiHandled = io.WantCaptureMouse;
+                break;
+
+            // Keyboard
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN: {
+                const bool isExtended = (HIWORD(lParam) & KF_EXTENDED) != 0;
+                const int vk = static_cast<int>(wParam);
+                ImGuiKey imguiKey = ImGui_ImplWin32_VirtualKeyToImGuiKey(vk, isExtended);
+                if (imguiKey != ImGuiKey_None) {
+                    io.AddKeyEvent(imguiKey, true);
+                }
+                // Handle modifier keys
+                io.AddKeyEvent(ImGuiMod_Ctrl, (GetKeyState(VK_CONTROL) & 0x8000) != 0);
+                io.AddKeyEvent(ImGuiMod_Shift, (GetKeyState(VK_SHIFT) & 0x8000) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt, (GetKeyState(VK_MENU) & 0x8000) != 0);
+                imguiHandled = io.WantCaptureKeyboard;
+                break;
+            }
+            case WM_KEYUP:
+            case WM_SYSKEYUP: {
+                const bool isExtended = (HIWORD(lParam) & KF_EXTENDED) != 0;
+                const int vk = static_cast<int>(wParam);
+                ImGuiKey imguiKey = ImGui_ImplWin32_VirtualKeyToImGuiKey(vk, isExtended);
+                if (imguiKey != ImGuiKey_None) {
+                    io.AddKeyEvent(imguiKey, false);
+                }
+                io.AddKeyEvent(ImGuiMod_Ctrl, (GetKeyState(VK_CONTROL) & 0x8000) != 0);
+                io.AddKeyEvent(ImGuiMod_Shift, (GetKeyState(VK_SHIFT) & 0x8000) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt, (GetKeyState(VK_MENU) & 0x8000) != 0);
+                imguiHandled = io.WantCaptureKeyboard;
+                break;
+            }
+
+            // Character input
+            case WM_CHAR:
+                if (wParam > 0 && wParam < 0x10000) {
+                    io.AddInputCharacterUTF16(static_cast<unsigned short>(wParam));
+                }
+                imguiHandled = io.WantCaptureKeyboard;
+                break;
+
+            default:
+                break;
+        }
     }
-    return CallWindowProcW(instance->originalWndProc_, hWnd, msg, wParam, lParam);
+
+    if (imguiHandled) {
+        return 0;
+    }
+
+    // Forward to game
+    if (instance && instance->originalWndProc_) {
+        return CallWindowProcW(instance->originalWndProc_, hWnd, msg, wParam, lParam);
+    }
+    return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
 // Texture management implementation
@@ -593,8 +1046,8 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
         return ImGuiTextureHandle{0, 0};
     }
 
-    if (!IsDeviceReady()) {
-        LOG_WARN("ImGuiService::CreateTexture: device not ready, texture will be created on-demand");
+    if (!raylib_ || !raylib_->initialized) {
+        LOG_WARN("ImGuiService::CreateTexture: raylib not ready, texture will be created on-demand");
     }
 
     uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
@@ -606,7 +1059,8 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     tex.height = desc.height;
     tex.creationGeneration = currentGen;
     tex.useSystemMemory = desc.useSystemMemory;
-    tex.surface = nullptr;
+    tex.textureId = 0;
+    tex.hasTexture = false;
     tex.needsRecreation = false;
 
     // Store source pixel data for recreation after device loss
@@ -614,10 +1068,10 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     tex.sourceData.resize(dataSize);
     std::memcpy(tex.sourceData.data(), desc.pixels, dataSize);
 
-    // Attempt initial surface creation
-    if (IsDeviceReady() && !deviceLost_) {
-        if (!CreateSurfaceForTexture_(tex)) {
-            LOG_WARN("ImGuiService::CreateTexture: surface creation failed, will retry later (id={})", tex.id);
+    // Attempt initial texture creation
+    if (raylib_ && raylib_->initialized && !deviceLost_) {
+        if (!CreateRaylibTexture_(tex)) {
+            LOG_WARN("ImGuiService::CreateTexture: texture creation failed, will retry later (id={})", tex.id);
             tex.needsRecreation = true;
         }
     } else {
@@ -637,119 +1091,63 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     return ImGuiTextureHandle{textureId, currentGen};
 }
 
-bool ImGuiService::CreateSurfaceForTexture_(ManagedTexture& tex) {
-    if (!IsDeviceReady()) {
+bool ImGuiService::CreateRaylibTexture_(ManagedTexture& tex) {
+    if (!raylib_ || !raylib_->initialized) {
         return false;
     }
 
-    // Acquire D3D interfaces with RAII cleanup
-    IDirect3DDevice7* d3d = nullptr;
-    IDirectDraw7* dd = nullptr;
-    if (!AcquireD3DInterfaces(&d3d, &dd)) {
-        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: failed to acquire D3D interfaces");
+    if (tex.width == 0 || tex.height == 0 || tex.sourceData.empty()) {
         return false;
     }
 
-    // RAII cleanup for interfaces
-    struct D3DCleanup {
-        IDirect3DDevice7* d3d;
-        IDirectDraw7* dd;
-        ~D3DCleanup() {
-            if (d3d) d3d->Release();
-            if (dd) dd->Release();
-        }
-    } cleanup{d3d, dd};
-
-    // Set up surface descriptor
-    DDSURFACEDESC2 ddsd{};
-    ddsd.dwSize = sizeof(ddsd);
-    ddsd.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
-    ddsd.dwWidth = tex.width;
-    ddsd.dwHeight = tex.height;
-    ddsd.ddsCaps.dwCaps = DDSCAPS_TEXTURE;
-
-    // Use video memory or system memory based on flag
-    if (tex.useSystemMemory) {
-        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
-    } else {
-        ddsd.ddsCaps.dwCaps |= DDSCAPS_VIDEOMEMORY;
+    if (tex.hasTexture && tex.textureId != 0) {
+        Texture2D oldTex{};
+        oldTex.id = tex.textureId;
+        oldTex.width = static_cast<int>(tex.width);
+        oldTex.height = static_cast<int>(tex.height);
+        oldTex.mipmaps = 1;
+        oldTex.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        UnloadTexture(oldTex);
+        tex.textureId = 0;
+        tex.hasTexture = false;
     }
 
-    // 32-bit ARGB pixel format
-    ddsd.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
-    ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
-    ddsd.ddpfPixelFormat.dwRGBBitCount = 32;
-    ddsd.ddpfPixelFormat.dwRBitMask = 0x00FF0000;
-    ddsd.ddpfPixelFormat.dwGBitMask = 0x0000FF00;
-    ddsd.ddpfPixelFormat.dwBBitMask = 0x000000FF;
-    ddsd.ddpfPixelFormat.dwRGBAlphaBitMask = 0xFF000000;
+    Image image{};
+    image.data = tex.sourceData.data();
+    image.width = static_cast<int>(tex.width);
+    image.height = static_cast<int>(tex.height);
+    image.mipmaps = 1;
+    image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
-    IDirectDrawSurface7* surface = nullptr;
-    HRESULT hr = dd->CreateSurface(&ddsd, &surface, nullptr);
-
-    // Fallback to system memory if video memory is exhausted
-    if (hr == DDERR_OUTOFVIDEOMEMORY && !tex.useSystemMemory) {
-        LOG_WARN("ImGuiService::CreateSurfaceForTexture_: video memory exhausted, falling back to system memory (id={})", tex.id);
-        ddsd.ddsCaps.dwCaps &= ~DDSCAPS_VIDEOMEMORY;
-        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
-        hr = dd->CreateSurface(&ddsd, &surface, nullptr);
-        if (SUCCEEDED(hr)) {
-            tex.useSystemMemory = true;
-        }
-    }
-
-    if (FAILED(hr) || !surface) {
-        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: CreateSurface failed (hr=0x{:08X}, id={})", hr, tex.id);
+    Texture2D newTex = LoadTextureFromImage(image);
+    if (newTex.id == 0) {
+        LOG_ERROR("ImGuiService::CreateRaylibTexture_: LoadTextureFromImage failed (id={})", tex.id);
         return false;
     }
 
-    // Lock surface for writing
-    DDSURFACEDESC2 lockDesc{};
-    lockDesc.dwSize = sizeof(lockDesc);
-    hr = surface->Lock(nullptr, &lockDesc, DDLOCK_WAIT | DDLOCK_WRITEONLY, nullptr);
-    if (FAILED(hr)) {
-        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: Lock failed (hr=0x{:08X}, id={})", hr, tex.id);
-        surface->Release();
-        return false;
-    }
-
-    // Copy pixel data row-by-row (respecting lPitch)
-    const auto* srcPixels = reinterpret_cast<const uint8_t*>(tex.sourceData.data());
-    auto* dstPixels = static_cast<uint8_t*>(lockDesc.lpSurface);
-    const uint32_t srcPitch = tex.width * 4;  // RGBA32
-    const uint32_t dstPitch = lockDesc.lPitch;
-
-    for (uint32_t y = 0; y < tex.height; ++y) {
-        std::memcpy(dstPixels + y * dstPitch, srcPixels + y * srcPitch, srcPitch);
-    }
-
-    surface->Unlock(nullptr);
-
-    // Clean up old surface if it exists
-    if (tex.surface) {
-        tex.surface->Release();
-    }
-
-    tex.surface = surface;
+    tex.textureId = newTex.id;
+    tex.hasTexture = true;
     tex.needsRecreation = false;
     uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
     tex.creationGeneration = currentGen;
 
-    LOG_INFO("ImGuiService::CreateSurfaceForTexture_: surface created successfully (id={}, gen={})",
+    LOG_INFO("ImGuiService::CreateRaylibTexture_: texture created successfully (id={}, gen={})",
         tex.id, currentGen);
     return true;
 }
 
-void* ImGuiService::GetTextureID(ImGuiTextureHandle handle) {
+Texture2D ImGuiService::GetTexture(ImGuiTextureHandle handle) {
+    Texture2D invalid{};
+    invalid.id = 0;
     // Check device generation first - return nullptr if mismatch
     uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
     if (handle.generation != currentGen) {
-        return nullptr;
+        return invalid;
     }
 
     // Check device lost flag
     if (deviceLost_) {
-        return nullptr;
+        return invalid;
     }
 
     std::lock_guard lock(texturesMutex_);
@@ -758,50 +1156,47 @@ void* ImGuiService::GetTextureID(ImGuiTextureHandle handle) {
     auto it = textures_.find(handle.id);
 
     if (it == textures_.end()) {
-        return nullptr;
+        return invalid;
     }
 
     ManagedTexture& tex = it->second;
 
-    // Recreate surface if needed
-    if (tex.needsRecreation || !tex.surface) {
-        if (!CreateSurfaceForTexture_(tex)) {
-            LOG_WARN("ImGuiService::GetTextureID: failed to recreate surface (id={})", tex.id);
-            return nullptr;
+    // Recreate texture if needed
+    if (tex.needsRecreation || !tex.hasTexture || tex.textureId == 0) {
+        if (!CreateRaylibTexture_(tex)) {
+            LOG_WARN("ImGuiService::GetTexture: failed to recreate texture (id={})", tex.id);
+            return invalid;
         }
     }
 
-    // Validate surface is not lost
-    // IsLost() returns DD_OK (S_OK) if surface is valid, DDERR_SURFACELOST if lost; other return values
-    // (including unexpected error codes) are not explicitly handled here and are treated as a valid surface.
-    if (tex.surface) {
-        HRESULT hr = tex.surface->IsLost();
-        if (hr == DDERR_SURFACELOST) {
-            LOG_WARN("ImGuiService::GetTextureID: surface is lost (id={})", tex.id);
-            tex.surface->Release();
-            tex.surface = nullptr;
-            tex.needsRecreation = true;
-            return nullptr;
-        }
-    }
-
-    return static_cast<void*>(tex.surface);
+    Texture2D texture{};
+    texture.id = tex.textureId;
+    texture.width = static_cast<int>(tex.width);
+    texture.height = static_cast<int>(tex.height);
+    texture.mipmaps = 1;
+    texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    return texture;
 }
 
 void ImGuiService::ReleaseTexture(ImGuiTextureHandle handle) {
     std::lock_guard lock(texturesMutex_);
-    return;
-
     auto it = textures_.find(handle.id);
 
     if (it == textures_.end()) {
         return;
     }
 
-    if (it->second.surface) {
-        it->second.surface->Release();
-        it->second.surface = nullptr;
+    if (raylib_ && raylib_->initialized && it->second.hasTexture && it->second.textureId != 0) {
+        Texture2D tex{};
+        tex.id = it->second.textureId;
+        tex.width = static_cast<int>(it->second.width);
+        tex.height = static_cast<int>(it->second.height);
+        tex.mipmaps = 1;
+        tex.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        UnloadTexture(tex);
     }
+    it->second.textureId = 0;
+    it->second.hasTexture = false;
 
     LOG_INFO("ImGuiService::ReleaseTexture: released texture (id={})", handle.id);
     textures_.erase(it);
@@ -824,19 +1219,26 @@ bool ImGuiService::IsTextureValid(ImGuiTextureHandle handle) const {
 void ImGuiService::OnDeviceLost_() {
     deviceLost_ = true;
 
-    // Invalidate all texture surfaces
+    // Invalidate all textures
     {
         std::lock_guard lock(texturesMutex_);
+        const bool canUnload = raylib_ && raylib_->initialized;
         for (auto& tex : textures_ | std::views::values) {
-            if (tex.surface) {
-                tex.surface->Release();
-                tex.surface = nullptr;
+            if (canUnload && tex.hasTexture && tex.textureId != 0) {
+                Texture2D texture{};
+                texture.id = tex.textureId;
+                texture.width = static_cast<int>(tex.width);
+                texture.height = static_cast<int>(tex.height);
+                texture.mipmaps = 1;
+                texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+                UnloadTexture(texture);
             }
+            tex.textureId = 0;
+            tex.hasTexture = false;
             tex.needsRecreation = true;
         }
     }
-
-    ImGui_ImplDX7_InvalidateDeviceObjects();
+    ReleaseOverlaySurface_();
 
     {
         std::lock_guard lock(texturesMutex_);
@@ -850,18 +1252,324 @@ void ImGuiService::OnDeviceRestored_() {
     // Increment device generation to invalidate old handles
     uint32_t newGen = deviceGeneration_.fetch_add(1, std::memory_order_release) + 1;
 
-    ImGui_ImplDX7_CreateDeviceObjects();
-
     LOG_INFO("ImGuiService::OnDeviceRestored_: device restored (new gen={}), textures will recreate on-demand", newGen);
 }
 
 void ImGuiService::InvalidateAllTextures_() {
     std::lock_guard lock(texturesMutex_);
     for (auto& tex : textures_ | std::views::values) {
-        if (tex.surface) {
-            tex.surface->Release();
-            tex.surface = nullptr;
+        if (raylib_ && raylib_->initialized && tex.hasTexture && tex.textureId != 0) {
+            Texture2D texture{};
+            texture.id = tex.textureId;
+            texture.width = static_cast<int>(tex.width);
+            texture.height = static_cast<int>(tex.height);
+            texture.mipmaps = 1;
+            texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+            UnloadTexture(texture);
         }
+        tex.textureId = 0;
+        tex.hasTexture = false;
         tex.needsRecreation = true;
     }
+}
+
+bool ImGuiService::InitializeRaylib_(HWND hwnd) {
+    if (!raylib_) {
+        raylib_ = std::make_unique<RaylibOverlay>();
+    }
+    if (raylib_->initialized) {
+        return true;
+    }
+
+    RECT rect{};
+    if (!GetClientRect(hwnd, &rect)) {
+        return false;
+    }
+    const int width = rect.right - rect.left;
+    const int height = rect.bottom - rect.top;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    SetTraceLogLevel(LOG_NONE);
+    SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_UNDECORATED);
+    InitWindow(width, height, "SC4 ImGui Hidden");
+    if (!IsWindowReady() || GetWindowHandle() == nullptr) {
+        if (IsWindowReady()) {
+            CloseWindow();
+        }
+        return false;
+    }
+
+    raylib_->window = static_cast<HWND>(GetWindowHandle());
+    raylib_->renderTarget = LoadRenderTexture(width, height);
+    if (raylib_->renderTarget.id == 0) {
+        if (IsWindowReady()) {
+            CloseWindow();
+        }
+        return false;
+    }
+    raylib_->width = width;
+    raylib_->height = height;
+
+    rlImGuiSetup(true);
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
+    raylib_->lastFrameTime = std::chrono::steady_clock::now();
+    raylib_->initialized = true;
+    AlignRaylibWindow_(hwnd, rect);
+    return true;
+}
+
+void ImGuiService::ShutdownRaylib_() {
+    if (!raylib_) {
+        return;
+    }
+
+    ReleaseOverlaySurface_();
+    if (raylib_->initialized) {
+        rlImGuiShutdown();
+        if (raylib_->renderTarget.id != 0) {
+            UnloadRenderTexture(raylib_->renderTarget);
+        }
+        if (IsWindowReady()) {
+            CloseWindow();
+        }
+        raylib_->initialized = false;
+    }
+    raylib_.reset();
+}
+
+bool ImGuiService::EnsureRaylibTarget_(HWND hwnd) {
+    if (!raylib_ || !raylib_->initialized) {
+        return InitializeRaylib_(hwnd);
+    }
+    if (!IsWindowReady() || GetWindowHandle() == nullptr) {
+        ShutdownRaylib_();
+        return InitializeRaylib_(hwnd);
+    }
+
+    RECT rect{};
+    if (!GetClientRect(hwnd, &rect)) {
+        return false;
+    }
+    const int width = rect.right - rect.left;
+    const int height = rect.bottom - rect.top;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    if (width == raylib_->width && height == raylib_->height) {
+        AlignRaylibWindow_(hwnd, rect);
+        return true;
+    }
+
+    if (!IsWindowReady()) {
+        return false;
+    }
+    SetWindowSize(width, height);
+    if (raylib_->renderTarget.id != 0) {
+        UnloadRenderTexture(raylib_->renderTarget);
+    }
+    raylib_->renderTarget = LoadRenderTexture(width, height);
+    if (raylib_->renderTarget.id == 0) {
+        return false;
+    }
+    raylib_->width = width;
+    raylib_->height = height;
+    ReleaseOverlaySurface_();
+    AlignRaylibWindow_(hwnd, rect);
+    return true;
+}
+
+bool ImGuiService::AlignRaylibWindow_(HWND hwnd, const RECT& clientRect) {
+    if (!raylib_ || !raylib_->initialized || !raylib_->window) {
+        return false;
+    }
+    const int width = clientRect.right - clientRect.left;
+    const int height = clientRect.bottom - clientRect.top;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+    POINT origin{clientRect.left, clientRect.top};
+    if (!ClientToScreen(hwnd, &origin)) {
+        return false;
+    }
+
+    const bool moved = !raylib_->hasWindowOrigin || origin.x != raylib_->origin.x || origin.y != raylib_->origin.y;
+    if (!moved) {
+        return true;
+    }
+
+    SetWindowPos(raylib_->window, HWND_TOPMOST, origin.x, origin.y, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+    raylib_->origin = origin;
+    raylib_->hasWindowOrigin = true;
+    return true;
+}
+
+bool ImGuiService::AnyPanelVisible_() const {
+    std::lock_guard lock(panelsMutex_);
+    for (const auto& panel : panels_) {
+        if (panel.desc.visible) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ImGuiService::UploadRaylibFrame_(IDirect3DDevice7* device, IDirectDraw7* dd) {
+    if (!raylib_ || !raylib_->initialized || !device || !dd) {
+        return false;
+    }
+
+    const int width = raylib_->width;
+    const int height = raylib_->height;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    Image image = LoadImageFromTexture(raylib_->renderTarget.texture);
+    if (!image.data) {
+        return false;
+    }
+    if (image.width != width || image.height != height) {
+        UnloadImage(image);
+        return false;
+    }
+
+    const uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
+    if (raylib_->overlaySurface && raylib_->overlaySurface->IsLost() == DDERR_SURFACELOST) {
+        ReleaseOverlaySurface_();
+    }
+    if (!raylib_->overlaySurface || raylib_->overlaySurfaceGeneration != currentGen) {
+        ReleaseOverlaySurface_();
+
+        DDSURFACEDESC2 ddsd{};
+        ddsd.dwSize = sizeof(ddsd);
+        ddsd.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
+        ddsd.dwWidth = static_cast<DWORD>(width);
+        ddsd.dwHeight = static_cast<DWORD>(height);
+        ddsd.ddsCaps.dwCaps = DDSCAPS_TEXTURE | DDSCAPS_VIDEOMEMORY;
+        ddsd.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
+        ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
+        ddsd.ddpfPixelFormat.dwRGBBitCount = 32;
+        ddsd.ddpfPixelFormat.dwRBitMask = 0x00FF0000;
+        ddsd.ddpfPixelFormat.dwGBitMask = 0x0000FF00;
+        ddsd.ddpfPixelFormat.dwBBitMask = 0x000000FF;
+        ddsd.ddpfPixelFormat.dwRGBAlphaBitMask = 0xFF000000;
+
+        IDirectDrawSurface7* surface = nullptr;
+        HRESULT hr = dd->CreateSurface(&ddsd, &surface, nullptr);
+        if (hr == DDERR_OUTOFVIDEOMEMORY) {
+            ddsd.ddsCaps.dwCaps &= ~DDSCAPS_VIDEOMEMORY;
+            ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
+            hr = dd->CreateSurface(&ddsd, &surface, nullptr);
+        }
+        if (FAILED(hr) || !surface) {
+            LOG_ERROR("ImGuiService::UploadRaylibFrame_: CreateSurface failed (hr=0x{:08X})", hr);
+            UnloadImage(image);
+            return false;
+        }
+        raylib_->overlaySurface = surface;
+        raylib_->overlaySurfaceGeneration = currentGen;
+    }
+
+    DDSURFACEDESC2 lockDesc{};
+    lockDesc.dwSize = sizeof(lockDesc);
+    HRESULT hr = raylib_->overlaySurface->Lock(nullptr, &lockDesc, DDLOCK_WAIT | DDLOCK_WRITEONLY, nullptr);
+    if (FAILED(hr)) {
+        LOG_WARN("ImGuiService::UploadRaylibFrame_: Lock failed (hr=0x{:08X})", hr);
+        ReleaseOverlaySurface_();
+        UnloadImage(image);
+        return false;
+    }
+
+    const auto* srcPixels = static_cast<const uint8_t*>(image.data);
+    auto* dstPixels = static_cast<uint8_t*>(lockDesc.lpSurface);
+    const uint32_t srcPitch = static_cast<uint32_t>(width) * 4;
+    const uint32_t dstPitch = lockDesc.lPitch;
+
+    for (int y = 0; y < height; ++y) {
+        const int srcY = height - 1 - y;
+        const uint8_t* srcRow = srcPixels + srcY * srcPitch;
+        uint8_t* dstRow = dstPixels + y * dstPitch;
+        for (int x = 0; x < width; ++x) {
+            const uint8_t r = srcRow[x * 4 + 0];
+            const uint8_t g = srcRow[x * 4 + 1];
+            const uint8_t b = srcRow[x * 4 + 2];
+            const uint8_t a = srcRow[x * 4 + 3];
+            dstRow[x * 4 + 0] = b;
+            dstRow[x * 4 + 1] = g;
+            dstRow[x * 4 + 2] = r;
+            dstRow[x * 4 + 3] = a;
+        }
+    }
+
+    raylib_->overlaySurface->Unlock(nullptr);
+    UnloadImage(image);
+
+    Dx7OverlayStateRestore stateRestore(device);
+    device->SetRenderState(D3DRENDERSTATE_ZENABLE, FALSE);
+    device->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, FALSE);
+    device->SetRenderState(D3DRENDERSTATE_CULLMODE, D3DCULL_NONE);
+    device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, TRUE);
+    device->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
+    device->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    device->SetRenderState(D3DRENDERSTATE_LIGHTING, FALSE);
+    device->SetRenderState(D3DRENDERSTATE_SHADEMODE, D3DSHADE_GOURAUD);
+    device->SetRenderState(D3DRENDERSTATE_FOGENABLE, FALSE);
+    device->SetRenderState(D3DRENDERSTATE_CLIPPING, TRUE);
+    device->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, FALSE);
+
+    device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    device->SetTextureStageState(0, D3DTSS_MINFILTER, D3DTFN_LINEAR);
+    device->SetTextureStageState(0, D3DTSS_MAGFILTER, D3DTFG_LINEAR);
+    device->SetTextureStageState(0, D3DTSS_MIPFILTER, D3DTFP_POINT);
+    device->SetTextureStageState(0, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+    device->SetTextureStageState(0, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
+
+    device->SetTexture(0, raylib_->overlaySurface);
+
+    struct ScreenVertex {
+        float x, y, z, rhw;
+        DWORD color;
+        float u, v;
+    };
+    constexpr DWORD kFvf = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
+
+    const float left = -0.5f;
+    const float top = -0.5f;
+    const float right = static_cast<float>(width) - 0.5f;
+    const float bottom = static_cast<float>(height) - 0.5f;
+
+    ScreenVertex verts[4] = {
+        { left,  top,    0.0f, 1.0f, 0xFFFFFFFF, 0.0f, 0.0f },
+        { right, top,    0.0f, 1.0f, 0xFFFFFFFF, 1.0f, 0.0f },
+        { left,  bottom, 0.0f, 1.0f, 0xFFFFFFFF, 0.0f, 1.0f },
+        { right, bottom, 0.0f, 1.0f, 0xFFFFFFFF, 1.0f, 1.0f }
+    };
+
+    device->DrawPrimitive(D3DPT_TRIANGLESTRIP, kFvf, verts, 4, 0);
+    return true;
+}
+
+void ImGuiService::ReleaseOverlaySurface_() {
+    if (!raylib_) {
+        return;
+    }
+    if (raylib_->overlaySurface) {
+        raylib_->overlaySurface->Release();
+        raylib_->overlaySurface = nullptr;
+    }
+    raylib_->overlaySurfaceGeneration = 0;
 }

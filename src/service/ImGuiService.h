@@ -1,5 +1,18 @@
 #pragma once
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define SC4IMGUI_WIN32_CLOSEWINDOW_RENAME
+#define CloseWindow CloseWindowWin32
+#define Rectangle RectangleWin32
+#define ShowCursor ShowCursorWin32
+#define LoadImage LoadImageWin32
+#define DrawText DrawTextWin32
+#define DrawTextEx DrawTextExWin32
 #include <cstdint>
 #include <d3d.h>
 #include <unordered_map>
@@ -7,12 +20,21 @@
 #include <Windows.h>
 #include <atomic>
 #include <mutex>
+#include <memory>
+#undef DrawTextEx
+#undef DrawText
+#undef LoadImage
+#undef ShowCursor
+#undef Rectangle
+#undef CloseWindow
+#undef SC4IMGUI_WIN32_CLOSEWINDOW_RENAME
 
 #include "cRZBaseSystemService.h"
 #include "public/cIGZImGuiService.h"
 
 // Forward declaration
 struct IDirectDrawSurface7;
+struct RaylibOverlay;
 
 // ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
 class ImGuiService final : public cRZBaseSystemService, public cIGZImGuiService
@@ -42,7 +64,7 @@ public:
     [[nodiscard]] uint32_t GetDeviceGeneration() const override;
 
     ImGuiTextureHandle CreateTexture(const ImGuiTextureDesc& desc) override;
-    [[nodiscard]] void* GetTextureID(ImGuiTextureHandle handle) override;
+    [[nodiscard]] Texture2D GetTexture(ImGuiTextureHandle handle) override;
     void ReleaseTexture(ImGuiTextureHandle handle) override;
     [[nodiscard]] bool IsTextureValid(ImGuiTextureHandle handle) const override;
 
@@ -60,7 +82,8 @@ private:
         uint32_t height;
         uint32_t creationGeneration;
         std::vector<uint8_t> sourceData;       // RGBA32 pixel data for recreation
-        IDirectDrawSurface7* surface;          // Can be nullptr if device lost
+        uint32_t textureId;                    // Raylib texture id
+        bool hasTexture;
         bool needsRecreation;
         bool useSystemMemory;
 
@@ -69,7 +92,8 @@ private:
             , width(0)
             , height(0)
             , creationGeneration(0)
-            , surface(nullptr)
+            , textureId(0)
+            , hasTexture(false)
             , needsRecreation(false)
             , useSystemMemory(false) {}
     };
@@ -84,10 +108,17 @@ private:
     static LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     // Texture management helpers
-    bool CreateSurfaceForTexture_(ManagedTexture& tex);
+    bool CreateRaylibTexture_(ManagedTexture& tex);
     void OnDeviceLost_();
     void OnDeviceRestored_();
     void InvalidateAllTextures_();
+    bool InitializeRaylib_(HWND hwnd);
+    void ShutdownRaylib_();
+    bool EnsureRaylibTarget_(HWND hwnd);
+    bool AlignRaylibWindow_(HWND hwnd, const RECT& clientRect);
+    bool AnyPanelVisible_() const;
+    bool UploadRaylibFrame_(IDirect3DDevice7* device, IDirectDraw7* dd);        
+    void ReleaseOverlaySurface_();
 
 private:
     std::vector<PanelEntry> panels_;
@@ -106,4 +137,5 @@ private:
     bool deviceLost_;
     std::atomic<uint32_t> deviceGeneration_;
     uint32_t nextTextureId_;
+    std::unique_ptr<RaylibOverlay> raylib_;
 };
