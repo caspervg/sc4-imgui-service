@@ -1,0 +1,620 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|Win32">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|Win32">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{ACF64FEB-356B-30DB-8600-4C52BF76160C}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>Win32</Platform>
+    <ProjectName>gzcom2</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">gzcom2.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">gzcom2</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">gzcom2.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">gzcom2</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">gzcom2.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">gzcom2</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">gzcom2.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">gzcom2</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:X86</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:X86</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ConformanceMode>true</ConformanceMode>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:X86</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:X86</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Building Custom Rule C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service -BC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service --check-stamp-file C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompilerABI.cpp;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCompilerIdDetection.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerABI.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerSupport.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindBinUtils.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitIncludeInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitLinkInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseLibraryArchitecture.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystem.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCompilerCommon.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ADSP-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMCC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\AppleClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Borland-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompilerInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Compaq-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Cray-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CrayClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Diab-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Embarcadero-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Fujitsu-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\FujitsuClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GHS-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GNU-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\HP-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IAR-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMCPP-CXX-DetermineVersionInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Intel-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IntelLLVM-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\LCC-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVHPC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVIDIA-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OpenWatcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OrangeC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PGI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PathScale-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Renesas-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SCO-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SunPro-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TIClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Tasking-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\VisualAge-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Watcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XL-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XLClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\zOS-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CompilerId\VS-10.vcxproj.in;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeDetermineLinkerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeInspectCXXLinker.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\FeatureTesting.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Determine-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeCXXCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeRCCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Building Custom Rule C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service -BC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service --check-stamp-file C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompilerABI.cpp;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCompilerIdDetection.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerABI.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerSupport.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindBinUtils.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitIncludeInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitLinkInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseLibraryArchitecture.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystem.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCompilerCommon.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ADSP-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMCC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\AppleClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Borland-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompilerInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Compaq-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Cray-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CrayClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Diab-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Embarcadero-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Fujitsu-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\FujitsuClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GHS-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GNU-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\HP-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IAR-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMCPP-CXX-DetermineVersionInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Intel-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IntelLLVM-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\LCC-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVHPC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVIDIA-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OpenWatcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OrangeC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PGI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PathScale-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Renesas-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SCO-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SunPro-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TIClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Tasking-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\VisualAge-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Watcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XL-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XLClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\zOS-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CompilerId\VS-10.vcxproj.in;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeDetermineLinkerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeInspectCXXLinker.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\FeatureTesting.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Determine-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeCXXCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeRCCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">Building Custom Rule C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service -BC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service --check-stamp-file C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompilerABI.cpp;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCompilerIdDetection.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerABI.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerSupport.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindBinUtils.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitIncludeInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitLinkInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseLibraryArchitecture.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystem.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCompilerCommon.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ADSP-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMCC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\AppleClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Borland-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompilerInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Compaq-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Cray-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CrayClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Diab-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Embarcadero-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Fujitsu-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\FujitsuClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GHS-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GNU-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\HP-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IAR-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMCPP-CXX-DetermineVersionInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Intel-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IntelLLVM-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\LCC-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVHPC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVIDIA-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OpenWatcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OrangeC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PGI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PathScale-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Renesas-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SCO-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SunPro-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TIClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Tasking-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\VisualAge-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Watcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XL-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XLClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\zOS-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CompilerId\VS-10.vcxproj.in;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeDetermineLinkerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeInspectCXXLinker.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\FeatureTesting.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Determine-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeCXXCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeRCCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">Building Custom Rule C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service -BC:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service --check-stamp-file C:/Users/caspe/CLionProjects/sc4-advanced-plop/vendor/sc4-imgui-service/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXCompilerABI.cpp;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeCompilerIdDetection.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerABI.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineCompilerSupport.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeDetermineSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindBinUtils.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitIncludeInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseImplicitLinkInfo.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeParseLibraryArchitecture.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCCompiler.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystem.cmake.in;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestCompilerCommon.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeTestRCCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ADSP-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMCC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\ARMClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\AppleClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Borland-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Clang-DetermineCompilerInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Compaq-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Cray-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\CrayClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Diab-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Embarcadero-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Fujitsu-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\FujitsuClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GHS-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\GNU-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\HP-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IAR-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMCPP-CXX-DetermineVersionInternal.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IBMClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Intel-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\IntelLLVM-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\LCC-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVHPC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\NVIDIA-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OpenWatcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\OrangeC-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PGI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\PathScale-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Renesas-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SCO-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\SunPro-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TI-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\TIClang-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Tasking-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\VisualAge-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\Watcom-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XL-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\XLClang-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Compiler\zOS-CXX-DetermineCompiler.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CompilerId\VS-10.vcxproj.in;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeDetermineLinkerId.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CMakeInspectCXXLinker.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\FeatureTesting.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Determine-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeCXXCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeRCCompiler.cmake;C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\4.2.1\CMakeSystem.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\PersistResourceKeyFilterBase.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\PersistResourceKeyFilterByInstance.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\PersistResourceKeyFilterByType.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\PersistResourceKeyFilterByTypeAndGroup.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\PersistResourceKeyFilterByTypeAndInstance.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\SC4UI.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\SCLuaUtil.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\SCPropertyUtil.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\StringResourceManager.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cGZCustomDllDirector.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZBaseString.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZBaseSystemService.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZBaseUnknown.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZBaseVariant.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZBaseWinProc.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZCOMDllDirector.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZCellMap.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZMessage2.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cRZMessage2Standard.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cS3DVector2.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cS3DVector3.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cSC4BaseLotConfigurationFilter.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cSC4BaseOccupantFilter.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cSC4BaseViewInputControl.cpp" />
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\src\cSCBaseProperty.cpp" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\GZCLSIDDefs.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\GZMSGIDDefs.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\GZServDecls.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\GZServPtrs.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\GZWinKeyAcceleratorUtil.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\PersistResourceKeyFilterBase.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\PersistResourceKeyFilterByInstance.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\PersistResourceKeyFilterByType.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\PersistResourceKeyFilterByTypeAndGroup.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\PersistResourceKeyFilterByTypeAndInstance.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4AppPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4AudioPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4CellRegion.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4DebugPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4GameOptionPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4HashSet.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4List.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4NewCityPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4Percentage.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4Point.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4Preferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4Rect.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4RegionPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4SimulatorPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4String.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4TipOfTheDayPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4TutorialPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4TutorialPreferences2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4UI.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4Vector.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4VideoPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SC4ViewPreferences.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SCLuaUtil.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\SCPropertyUtil.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\StringResourceKey.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\StringResourceManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZAllocatorServiceSTLAllocator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZCOMLibrary.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZDisplayMetrics.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZDisplayTiming.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZGPixelFormatDesc.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZMessage.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cGZPersistResourceKey.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZAllocatorService.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZApp.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZBuffer.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCOM.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCOMDirector.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCOMLibrary.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCallbackManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCallbackService.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCanvas.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCanvasMessage.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCanvasW32.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCheatCodeManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCmdLine.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCommandDispatcher.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCommandParameterSet.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCommandServer.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCursor.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZCursorManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZDBSegmentPackedFile.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZDBSerialRecordAsIGZFile.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZDate.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZFile.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZFileSystem.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZFrameWork.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZFrameWorkHooks.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZFrameWorkW32.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZGDriver.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZGimexFactory.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZGraphicSystem.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZGraphicSystem2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZIStream.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZKeyMessage.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZKeyboard.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZLanguageManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZLanguageUtility.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZLua5.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZLua5Thread.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMessage2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMessage2Standard.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMessageServer.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMessageServer2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMessageTarget.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMessageTarget2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZMouseMessage.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZOStream.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistDBRecord.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistDBSegment.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistDBSegmentMultiPackedFiles.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistDBSerialRecord.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistResource.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistResourceFactory.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistResourceKeyFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistResourceKeyList.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZPersistResourceManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZRadio.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZSerializable.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZSndSys.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZString.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZSystemService.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZUIScriptService.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZUnknown.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZUnknownList.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZVariant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWin.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinBtn.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinCombo.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinGen.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinKeyAccelerator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinKeyAcceleratorRes.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinMessageFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinMgr.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinProc.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinProcFilterW32.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIGZWinText.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIS3DModelInstance.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cIS3DTextureBindingFactory.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC424HourClock.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC43DRender.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Advice.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AdviceSubject.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Advisor.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AdvisorSystem.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AirportDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4App.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AuraSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AutomataControllerManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AutomataManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4AutomataScriptSystem.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Automaton.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4BudgetSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4BuildingDevelopmentSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4BuildingOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4BusinessUnit.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4City.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4CitySituationAdvice.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4CitySituationManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4CivicBuildingSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4CommercialSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4ConstructionOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4CrimeSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DBSegment.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DBSegmentIStream.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DBSegmentOStream.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Demand.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DemandSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Demolition.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DepartmentBudget.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterInstance.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterInstanceFire.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterInstanceVolcano.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterLayer.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterManagerFire.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DisasterManagerVolcano.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4DispatchManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4EffectMaps.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4EffectsManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FeatureManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FireOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FireProtectionSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FlammabilitySimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FloraOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FloraSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4FoundationOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4GameDataRegistry.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4GameDataRegistryNotificationTarget.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4GrowthDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4HistoryWarehouse.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4IndustrialSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LandValueSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LandfillDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LandfillOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LineItem.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Lot.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotBaseTextureOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotConfiguration.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotConfigurationFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotConfigurationManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4LotRetainingWallOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4MySim.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4MySimAgentSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Nation.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NeighborConnection.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NeighborDeal.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NeighborsSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NetworkLot.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NetworkLotConfiguration.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NetworkLotManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NetworkManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NetworkOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4NetworkTool.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Occupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4OccupantFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4OccupantManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Ordinance.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4OrdinanceSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4ParkManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PlumbingSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PoliceSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PollutionSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PortDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PowerLineOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PowerSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PropDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PropManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PropOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4PylonOccupant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Region.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4RegionalCity.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4RenderProperties.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4ResidentialSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4SeaportDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4SimGrid.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4Simulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4TractDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4TrafficSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4TrafficSource.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4TutorialSystem.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4View3DWin.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4ViewInputControl.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4VisualEffect.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4WeatherSimulator.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4ZoneDeveloper.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISC4ZoneManager.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCExemplarPropertyHolder.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCLua.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCProperty.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCPropertyHolder.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCResExemplar.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCResExemplarCohort.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISCStringDetokenizer.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISTESurfaceWater.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISTETerrain.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISTETerrainMap.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cISTETerrainView.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZAutoRefCount.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZBaseString.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZBaseSystemService.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZBaseUnknown.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZBaseVariant.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZBaseWinProc.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZCOMDllDirector.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZCellMap.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZMessage2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZMessage2COMDirector.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZMessage2Standard.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZPoint.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZRect.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZSysServPtr.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cRZUnknown.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cS3DCamera.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cS3DTextureBinding.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cS3DVector2.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cS3DVector3.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSC4BaseLotConfigurationFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSC4BaseOccupantFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSC4BaseViewInputControl.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSC4EdgeConnectionStore.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSC4NetworkTool.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSC4OccupantTypeFilter.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\cSCBaseProperty.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\ilist.h" />
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\gzcom-dll\gzcom-dll\include\sGDMode.h" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\ZERO_CHECK.vcxproj">
+      <Project>{FB5D9DD0-8C7C-32B5-BF9E-0DFBAEB1971A}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

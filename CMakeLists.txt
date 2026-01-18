@@ -1,14 +1,14 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.20)
+
+# Enable new MSVC runtime library selection policy
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
 
 # Force 32-bit build for SimCity 4 compatibility BEFORE project() call
 # Set the platform regardless of current setting to ensure 32-bit
 set(CMAKE_GENERATOR_PLATFORM "Win32")
 message(STATUS "Forcing 32-bit build for SC4 compatibility")
-#
-## Force release runtime BEFORE project() call - this is critical
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-set(CMAKE_CXX_FLAGS_DEBUG "/MD /Zi /Ob0 /Od")
-set(CMAKE_C_FLAGS_DEBUG "/MD /Zi /Ob0 /Od")
 
 # Additional 32-bit enforcement
 if(WIN32)
@@ -19,7 +19,7 @@ endif()
 
 project(SC4ImguiBackend VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Platform specific settings
@@ -31,13 +31,6 @@ endif()
 if(MSVC)
     add_compile_options(/W4 /permissive-)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-
-    # Force release runtime for all configurations
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-
-    # Override debug flags to use release runtime
-    set(CMAKE_CXX_FLAGS_DEBUG "/MD /Zi /Ob0 /Od /RTC1")
-    set(CMAKE_C_FLAGS_DEBUG "/MD /Zi /Ob0 /Od /RTC1")
 
     # Enable debugging in release builds
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")

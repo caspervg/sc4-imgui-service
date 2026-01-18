@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_demo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_draw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_impl_dx7.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_impl_win32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_tables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_widgets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imconfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_impl_dx7.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_impl_win32.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imgui_internal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imstb_rectpack.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imstb_textedit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\vendor\d3d7imgui\ImGui\imstb_truetype.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\caspe\CLionProjects\sc4-advanced-plop\vendor\sc4-imgui-service\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{AB8A760D-2556-30B1-AB1D-0C021E106CA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{3B6D1F56-EF80-3A00-B70F-204EF1BB10E5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
