@@ -380,11 +380,30 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
             }
         }
 
+    {
+        std::lock_guard lock(panelsMutex_);
         for (auto& panel : panels_) {
             if (panel.desc.visible && panel.desc.on_render) {
+                // Push the panel's font if specified
+                if (panel.desc.fontId != 0) {
+                    auto* font = static_cast<ImFont*>(GetFont(panel.desc.fontId));
+                    if (font) {
+                        ImGui::PushFont(font, 0.0f);  // 0.0f preserves current font size
+                    }
+                }
+
                 panel.desc.on_render(panel.desc.data);
+
+                // Pop the font if we pushed one
+                if (panel.desc.fontId != 0) {
+                    auto* font = static_cast<ImFont*>(GetFont(panel.desc.fontId));
+                    if (font) {
+                        ImGui::PopFont();
+                    }
+                }
             }
         }
+    }
     }
 
     // Preserve game render state that we override for ImGui's draw pass.
@@ -865,3 +884,70 @@ void ImGuiService::InvalidateAllTextures_() {
         tex.needsRecreation = true;
     }
 }
+
+bool ImGuiService::RegisterFont(uint32_t fontId, const char* filePath, float size) {
+    if (!filePath || size <= 0.0f) {
+        LOG_ERROR("ImGuiService::RegisterFont: invalid arguments (fontId={}, size={})", fontId, size);
+        return false;
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (!io.Fonts) {
+        LOG_ERROR("ImGuiService::RegisterFont: ImGui not initialized");
+        return false;
+    }
+
+    std::lock_guard lock(fontsMutex_);
+
+    // Check if font ID already registered
+    if (fonts_.contains(fontId)) {
+        LOG_WARN("ImGuiService::RegisterFont: font ID {} already registered", fontId);
+        return false;
+    }
+
+    // Configure font with improved rendering
+    ImFontConfig fontConfig;
+    fontConfig.OversampleH = 3;
+    fontConfig.OversampleV = 3;
+    fontConfig.PixelSnapH = true;
+
+    // Load the font
+    ImFont* font = io.Fonts->AddFontFromFileTTF(filePath, size, &fontConfig);
+    if (!font) {
+        LOG_ERROR("ImGuiService::RegisterFont: failed to load font from '{}'", filePath);
+        return false;
+    }
+
+    fonts_[fontId] = { fontId, font };
+    LOG_INFO("ImGuiService::RegisterFont: registered font ID {} from '{}' (size={})", fontId, filePath, size);
+    return true;
+}
+
+bool ImGuiService::UnregisterFont(uint32_t fontId) {
+    std::lock_guard lock(fontsMutex_);
+
+    if (!fonts_.contains(fontId)) {
+        LOG_WARN("ImGuiService::UnregisterFont: font ID {} not found", fontId);
+        return false;
+    }
+
+    fonts_.erase(fontId);
+    LOG_INFO("ImGuiService::UnregisterFont: unregistered font ID {}", fontId);
+    return true;
+}
+
+void* ImGuiService::GetFont(const uint32_t fontId) const {
+    if (fontId == 0) {
+        // Return default font
+        return ImGui::GetIO().FontDefault;
+    }
+
+    std::lock_guard lock(fontsMutex_);
+    auto it = fonts_.find(fontId);
+    if (it == fonts_.end()) {
+        return nullptr;
+    }
+
+    return it->second.font;
+}
+

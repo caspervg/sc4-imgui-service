@@ -14,6 +14,7 @@ struct ImGuiPanelDesc
     void (*on_shutdown)(void* data);
     void (*on_unregister)(void* data);
     void* data;
+    uint32_t fontId;  // Font ID for this panel; 0 = use default font
 };
 
 struct IDirectDraw7;
@@ -36,8 +37,7 @@ struct ImGuiTextureDesc
 };
 
 // ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
-class cIGZImGuiService : public cIGZUnknown
-{
+class cIGZImGuiService : public cIGZUnknown {
 public:
     // Returns the service ID (kImGuiServiceID).
     [[nodiscard]] virtual uint32_t GetServiceID() const = 0;
@@ -89,4 +89,15 @@ public:
     // Checks if a texture handle is valid and matches the current device generation.
     // Thread safety: Must be called from the render thread only.
     [[nodiscard]] virtual bool IsTextureValid(ImGuiTextureHandle handle) const = 0;
+
+    // Loads a TTF font from file and registers it with the given ID.
+    // size: font size in pixels
+    // Returns true on success, false if font cannot be loaded or ID is already registered.
+    virtual bool RegisterFont(uint32_t fontId, const char* filePath, float size) = 0;
+
+    // Unregisters a font; returns false if not found.
+    virtual bool UnregisterFont(uint32_t fontId) = 0;
+
+    // Gets the ImFont* for a registered font ID, or nullptr if not found.
+    [[nodiscard]] virtual void* GetFont(uint32_t fontId) const = 0;
 };

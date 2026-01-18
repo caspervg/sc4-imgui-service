@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstdint>
+#include <atomic>
 #include <d3d.h>
+#include <imgui.h>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 #include <Windows.h>
-#include <atomic>
-#include <mutex>
 
 #include "cRZBaseSystemService.h"
 #include "public/cIGZImGuiService.h"
@@ -46,11 +46,21 @@ public:
     void ReleaseTexture(ImGuiTextureHandle handle) override;
     [[nodiscard]] bool IsTextureValid(ImGuiTextureHandle handle) const override;
 
+    bool RegisterFont(uint32_t fontId, const char* filePath, float size) override;
+    bool UnregisterFont(uint32_t fontId) override;
+    [[nodiscard]] void* GetFont(uint32_t fontId) const override;
+
 private:
     struct PanelEntry
     {
         ImGuiPanelDesc desc;
         bool initialized;
+    };
+
+    struct ManagedFont
+    {
+        uint32_t id;
+        ImFont* font;  // Pointer to ImFont* managed by ImGui
     };
 
     struct ManagedTexture
@@ -92,6 +102,9 @@ private:
 private:
     std::vector<PanelEntry> panels_;
     mutable std::mutex panelsMutex_;
+
+    std::unordered_map<uint32_t, ManagedFont> fonts_;  // Key: font ID
+    mutable std::mutex fontsMutex_;
 
     std::unordered_map<uint32_t, ManagedTexture> textures_;  // Key: texture ID
     mutable std::mutex texturesMutex_;
