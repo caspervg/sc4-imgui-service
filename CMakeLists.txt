@@ -32,6 +32,23 @@ if(MSVC)
     add_compile_options(/W4 /permissive-)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 
+    # For Visual Studio multi-config generator, set the runtime library policy
+    # This ensures consistent runtime linking across all targets and dependencies
+    # CMP0091 allows us to use CMAKE_MSVC_RUNTIME_LIBRARY variable
+
+    # Determine runtime library based on CMAKE_BUILD_TYPE (for single-config) or default
+    if(CMAKE_BUILD_TYPE)
+        if(CMAKE_BUILD_TYPE MATCHES "Debug")
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+        else()
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+        endif()
+    else()
+        # For Visual Studio (multi-config), default to Release runtime, but generator will override per-config
+        # The CMAKE_CONFIGURATION_TYPES will be handled by the generator
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    endif()
+
     # Enable debugging in release builds
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
@@ -134,11 +151,6 @@ set_target_properties(SC4ImGuiService PROPERTIES
         PREFIX ""
 )
 
-if(MSVC)
-    set_target_properties(SC4ImGuiService PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-endif()
 
 # ImGui sample DLL
 set(IMGUI_SAMPLE_SOURCES
@@ -167,11 +179,6 @@ set_target_properties(SC4ImGuiSample PROPERTIES
         PREFIX ""
 )
 
-if(MSVC)
-    set_target_properties(SC4ImGuiSample PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-endif()
 
 # ImGui city-only sample DLL
 set(IMGUI_SAMPLE_CITY_SOURCES
@@ -201,11 +208,6 @@ set_target_properties(SC4ImGuiSampleCity PROPERTIES
         PREFIX ""
 )
 
-if(MSVC)
-    set_target_properties(SC4ImGuiSampleCity PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-endif()
 
 # ImGui demo sample DLL
 set(IMGUI_SAMPLE_DEMO_SOURCES
@@ -235,11 +237,6 @@ set_target_properties(SC4ImGuiSampleDemo PROPERTIES
         PREFIX ""
 )
 
-if(MSVC)
-    set_target_properties(SC4ImGuiSampleDemo PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-endif()
 
 # ImGui texture sample DLL
 set(IMGUI_TEXTURE_SAMPLE_SOURCES
@@ -269,11 +266,6 @@ set_target_properties(SC4ImGuiTextureSample PROPERTIES
         PREFIX ""
 )
 
-if(MSVC)
-    set_target_properties(SC4ImGuiTextureSample PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-endif()
 
 add_custom_target(SC4ImGuiAllTargets
         DEPENDS imgui SC4ImGuiService SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample

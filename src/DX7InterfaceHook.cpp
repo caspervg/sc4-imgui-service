@@ -90,6 +90,21 @@ bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
 
     ImGui::StyleColorsDark();
 
+    // Configure font with improved rendering
+    ImFontConfig fontConfig;
+    fontConfig.OversampleH = 3;  // Horizontal oversampling for crisper text
+    fontConfig.OversampleV = 3;  // Vertical oversampling for crisper text
+    fontConfig.PixelSnapH = true;  // Snap to pixel grid for sharper rendering
+
+    // Load ProggyClean font
+    ImFont* font = io.Fonts->AddFontFromFileTTF(R"(C:\Users\caspe\Downloads\ProggyVector-Regular.ttf)", 16.0f, &fontConfig);
+    if (font) {
+        io.FontDefault = font;
+        LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded ProggyClean font (size=13)");
+    } else {
+        LOG_WARN("DX7InterfaceHook::InitializeImGui: failed to load ProggyClean, using default font");
+    }
+
     ImGui_ImplWin32_Init(hwnd);
 
     auto* d3dDevice = d3dx->GetD3DDevice();
