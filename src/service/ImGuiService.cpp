@@ -38,16 +38,16 @@ namespace {
 
         explicit Dx7ImGuiStateRestore(IDirect3DDevice7* deviceIn)
             : device(deviceIn)
-            , hasStage0Coord(false)
-            , hasStage0Transform(false)
-            , hasStage1Coord(false)
-            , hasStage1Transform(false)
-            , hasAlphaTestEnable(false)
-            , stage0Coord(0)
-            , stage0Transform(0)
-            , stage1Coord(0)
-            , stage1Transform(0)
-            , alphaTestEnable(0) {
+              , hasStage0Coord(false)
+              , hasStage0Transform(false)
+              , hasStage1Coord(false)
+              , hasStage1Transform(false)
+              , hasAlphaTestEnable(false)
+              , stage0Coord(0)
+              , stage0Transform(0)
+              , stage1Coord(0)
+              , stage1Transform(0)
+              , alphaTestEnable(0) {
             if (!device) {
                 return;
             }
@@ -94,16 +94,16 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 ImGuiService::ImGuiService()
     : cRZBaseSystemService(kImGuiServiceID, 0)
-    , gameWindow_(nullptr)
-    , originalWndProc_(nullptr)
-    , initialized_(false)
-    , imguiInitialized_(false)
-    , hookInstalled_(false)
-    , warnedNoDriver_(false)
-    , warnedMissingWindow_(false)
-    , deviceLost_(false)
-    , deviceGeneration_(0)
-    , nextTextureId_(1) {}
+      , gameWindow_(nullptr)
+      , originalWndProc_(nullptr)
+      , initialized_(false)
+      , imguiInitialized_(false)
+      , hookInstalled_(false)
+      , warnedNoDriver_(false)
+      , warnedMissingWindow_(false)
+      , deviceLost_(false)
+      , deviceGeneration_(0)
+      , nextTextureId_(1) {}
 
 ImGuiService::~ImGuiService() {
     auto expected = this;
@@ -322,9 +322,10 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
     if (prevThreadId == 0) {
         g_renderThreadId.store(threadId, std::memory_order_release);
         LOG_DEBUG("ImGuiService::RenderFrame_: render thread id set to {}", threadId);
-    } else if (prevThreadId != threadId) {
+    }
+    else if (prevThreadId != threadId) {
         LOG_WARN("ImGuiService::RenderFrame_: render thread id changed ({} -> {})",
-            prevThreadId, threadId);
+                 prevThreadId, threadId);
         g_renderThreadId.store(threadId, std::memory_order_release);
     }
     if (!imguiInitialized_) {
@@ -360,11 +361,13 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
         if (!deviceLost_) {
             OnDeviceLost_();
         }
-        return;  // Skip rendering when device is lost
-    } else if (FAILED(hr)) {
+        return; // Skip rendering when device is lost
+    }
+    else if (FAILED(hr)) {
         // Non-device-loss failure: skip rendering but do not change deviceLost_ state
         return;
-    } else if (deviceLost_) {
+    }
+    else if (deviceLost_) {
         OnDeviceRestored_();
     }
 
@@ -388,7 +391,7 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
                 // Push the panel's font if specified
                 if (panel.desc.fontId != 0) {
                     if (auto* font = static_cast<ImFont*>(GetFont(panel.desc.fontId))) {
-                        ImGui::PushFont(font, 0.0f);  // 0.0f preserves current font size
+                        ImGui::PushFont(font, 0.0f); // 0.0f preserves current font size
                     }
                 }
 
@@ -459,9 +462,9 @@ bool ImGuiService::EnsureInitialized_() {
     auto* d3dx = DX7InterfaceHook::GetD3DXInterface();
     if (!d3dx || !d3dx->GetD3DDevice() || !d3dx->GetDD()) {
         LOG_WARN("ImGuiService: D3DX interface not ready yet (d3dx={}, d3d={}, dd={})",
-            static_cast<void*>(d3dx),
-            static_cast<void*>(d3dx ? d3dx->GetD3DDevice() : nullptr),
-            static_cast<void*>(d3dx ? d3dx->GetDD() : nullptr));
+                 static_cast<void*>(d3dx),
+                 static_cast<void*>(d3dx ? d3dx->GetD3DDevice() : nullptr),
+                 static_cast<void*>(d3dx ? d3dx->GetDD() : nullptr));
         return false;
     }
 
@@ -578,19 +581,20 @@ LRESULT CALLBACK ImGuiService::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, L
 
 // Texture management implementation
 
-ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {  
+ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     const DWORD threadId = GetCurrentThreadId();
     const DWORD renderThreadId = g_renderThreadId.load(std::memory_order_acquire);
     if (renderThreadId != 0 && renderThreadId != threadId) {
         LOG_WARN("ImGuiService::CreateTexture: called off render thread (tid={}, render_tid={})",
-            threadId, renderThreadId);
-    } else {
+                 threadId, renderThreadId);
+    }
+    else {
         LOG_DEBUG("ImGuiService::CreateTexture: thread id {}", threadId);
     }
     // Validate parameters
     if (desc.width == 0 || desc.height == 0 || !desc.pixels) {
         LOG_ERROR("ImGuiService::CreateTexture: invalid parameters (width={}, height={}, pixels={})",
-            desc.width, desc.height, static_cast<const void*>(desc.pixels));
+                  desc.width, desc.height, static_cast<const void*>(desc.pixels));
         return ImGuiTextureHandle{0, 0};
     }
 
@@ -598,7 +602,7 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     // Ensure width * height doesn't overflow when computing pixel count
     if (desc.height > SIZE_MAX / desc.width) {
         LOG_ERROR("ImGuiService::CreateTexture: dimensions would overflow (width={}, height={})",
-            desc.width, desc.height);
+                  desc.width, desc.height);
         return ImGuiTextureHandle{0, 0};
     }
 
@@ -627,7 +631,7 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     tex.needsRecreation = false;
 
     // Store source pixel data for recreation after device loss
-    const size_t dataSize = pixelCount * 4;  // RGBA32
+    const size_t dataSize = pixelCount * 4; // RGBA32
     tex.sourceData.resize(dataSize);
     std::memcpy(tex.sourceData.data(), desc.pixels, dataSize);
 
@@ -637,7 +641,8 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
             LOG_WARN("ImGuiService::CreateTexture: surface creation failed, will retry later (id={})", tex.id);
             tex.needsRecreation = true;
         }
-    } else {
+    }
+    else {
         tex.needsRecreation = true;
     }
 
@@ -649,115 +654,12 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     }
 
     LOG_INFO("ImGuiService::CreateTexture: created texture id={} ({}x{}, gen={})",
-        textureId, desc.width, desc.height, currentGen);
+             textureId, desc.width, desc.height, currentGen);
 
     return ImGuiTextureHandle{textureId, currentGen};
 }
 
-bool ImGuiService::CreateSurfaceForTexture_(ManagedTexture& tex) {
-    if (!IsDeviceReady()) {
-        return false;
-    }
-
-    // Acquire D3D interfaces with RAII cleanup
-    IDirect3DDevice7* d3d = nullptr;
-    IDirectDraw7* dd = nullptr;
-    if (!AcquireD3DInterfaces(&d3d, &dd)) {
-        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: failed to acquire D3D interfaces");
-        return false;
-    }
-
-    // RAII cleanup for interfaces
-    struct D3DCleanup {
-        IDirect3DDevice7* d3d;
-        IDirectDraw7* dd;
-        ~D3DCleanup() {
-            if (d3d) d3d->Release();
-            if (dd) dd->Release();
-        }
-    } cleanup{d3d, dd};
-
-    // Set up surface descriptor
-    DDSURFACEDESC2 ddsd{};
-    ddsd.dwSize = sizeof(ddsd);
-    ddsd.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
-    ddsd.dwWidth = tex.width;
-    ddsd.dwHeight = tex.height;
-    ddsd.ddsCaps.dwCaps = DDSCAPS_TEXTURE;
-
-    // Use video memory or system memory based on flag
-    if (tex.useSystemMemory) {
-        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
-    } else {
-        ddsd.ddsCaps.dwCaps |= DDSCAPS_VIDEOMEMORY;
-    }
-
-    // 32-bit ARGB pixel format
-    ddsd.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
-    ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
-    ddsd.ddpfPixelFormat.dwRGBBitCount = 32;
-    ddsd.ddpfPixelFormat.dwRBitMask = 0x00FF0000;
-    ddsd.ddpfPixelFormat.dwGBitMask = 0x0000FF00;
-    ddsd.ddpfPixelFormat.dwBBitMask = 0x000000FF;
-    ddsd.ddpfPixelFormat.dwRGBAlphaBitMask = 0xFF000000;
-
-    IDirectDrawSurface7* surface = nullptr;
-    HRESULT hr = dd->CreateSurface(&ddsd, &surface, nullptr);
-
-    // Fallback to system memory if video memory is exhausted
-    if (hr == DDERR_OUTOFVIDEOMEMORY && !tex.useSystemMemory) {
-        LOG_WARN("ImGuiService::CreateSurfaceForTexture_: video memory exhausted, falling back to system memory (id={})", tex.id);
-        ddsd.ddsCaps.dwCaps &= ~DDSCAPS_VIDEOMEMORY;
-        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
-        hr = dd->CreateSurface(&ddsd, &surface, nullptr);
-        if (SUCCEEDED(hr)) {
-            tex.useSystemMemory = true;
-        }
-    }
-
-    if (FAILED(hr) || !surface) {
-        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: CreateSurface failed (hr=0x{:08X}, id={})", hr, tex.id);
-        return false;
-    }
-
-    // Lock surface for writing
-    DDSURFACEDESC2 lockDesc{};
-    lockDesc.dwSize = sizeof(lockDesc);
-    hr = surface->Lock(nullptr, &lockDesc, DDLOCK_WAIT | DDLOCK_WRITEONLY, nullptr);
-    if (FAILED(hr)) {
-        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: Lock failed (hr=0x{:08X}, id={})", hr, tex.id);
-        surface->Release();
-        return false;
-    }
-
-    // Copy pixel data row-by-row (respecting lPitch)
-    const auto* srcPixels = reinterpret_cast<const uint8_t*>(tex.sourceData.data());
-    auto* dstPixels = static_cast<uint8_t*>(lockDesc.lpSurface);
-    const uint32_t srcPitch = tex.width * 4;  // RGBA32
-    const uint32_t dstPitch = lockDesc.lPitch;
-
-    for (uint32_t y = 0; y < tex.height; ++y) {
-        std::memcpy(dstPixels + y * dstPitch, srcPixels + y * srcPitch, srcPitch);
-    }
-
-    surface->Unlock(nullptr);
-
-    // Clean up old surface if it exists
-    if (tex.surface) {
-        tex.surface->Release();
-    }
-
-    tex.surface = surface;
-    tex.needsRecreation = false;
-    uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
-    tex.creationGeneration = currentGen;
-
-    LOG_INFO("ImGuiService::CreateSurfaceForTexture_: surface created successfully (id={}, gen={})",
-        tex.id, currentGen);
-    return true;
-}
-
-void* ImGuiService::GetTextureID(ImGuiTextureHandle handle) {
+void* ImGuiService::GetTextureID(const ImGuiTextureHandle handle) {
     // Check device generation first - return nullptr if mismatch
     uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
     if (handle.generation != currentGen) {
@@ -838,6 +740,222 @@ bool ImGuiService::IsTextureValid(ImGuiTextureHandle handle) const {
     return textures_.find(handle.id) != textures_.end();
 }
 
+bool ImGuiService::RegisterFont(uint32_t fontId, const char* filePath, float sizePixels) {
+    if (!filePath || sizePixels <= 0.0f) {
+        LOG_ERROR("ImGuiService::RegisterFont: invalid arguments (fontId={}, size={})", fontId, sizePixels);
+        return false;
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (!io.Fonts) {
+        LOG_ERROR("ImGuiService::RegisterFont: ImGui not initialized");
+        return false;
+    }
+
+    std::lock_guard lock(fontsMutex_);
+
+    // Check if font ID already registered
+    if (fonts_.contains(fontId)) {
+        LOG_WARN("ImGuiService::RegisterFont: font ID {} already registered", fontId);
+        return false;
+    }
+
+    // Configure font with improved rendering
+    ImFontConfig fontConfig;
+    fontConfig.OversampleH = 2;
+    fontConfig.OversampleV = 2;
+    fontConfig.PixelSnapH = true;
+    fontConfig.GlyphExtraAdvanceX = 1.0f;
+
+    // Load the font
+    ImFont* font = io.Fonts->AddFontFromFileTTF(filePath, sizePixels, &fontConfig);
+    if (!font) {
+        LOG_ERROR("ImGuiService::RegisterFont: failed to load font from '{}'", filePath);
+        return false;
+    }
+
+    fonts_[fontId] = {fontId, font};
+    LOG_INFO("ImGuiService::RegisterFont: registered font ID {} from '{}' (size={})", fontId, filePath, sizePixels);
+    return true;
+}
+
+bool ImGuiService::RegisterFont(uint32_t fontId, const void* compressedFontData, const int compressedFontDataSize,
+                                float sizePixels) {
+    if (!compressedFontData || compressedFontDataSize < 0 || sizePixels <= 0.0f) {
+        LOG_ERROR("ImGuiService::RegisterFont: invalid arguments (fontId={}, compressedFontDataSize={}, size={})",
+                  fontId, compressedFontDataSize, sizePixels);
+        return false;
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (!io.Fonts) {
+        LOG_ERROR("ImGuiService::RegisterFont: ImGui not initialized");
+        return false;
+    }
+
+    std::lock_guard lock(fontsMutex_);
+
+    // Check if font ID already registered
+    if (fonts_.contains(fontId)) {
+        LOG_WARN("ImGuiService::RegisterFont: font ID {} already registered", fontId);
+        return false;
+    }
+
+    // Configure font with improved rendering
+    ImFontConfig fontConfig;
+    fontConfig.OversampleH = 2;
+    fontConfig.OversampleV = 2;
+    fontConfig.PixelSnapH = true;
+    fontConfig.GlyphExtraAdvanceX = 1.0f;
+
+    // Load the font
+    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(compressedFontData, compressedFontDataSize, sizePixels, &fontConfig);
+    if (!font) {
+        LOG_ERROR("ImGuiService::RegisterFont: failed to load font from compressed data (fontDataSize={})", compressedFontDataSize);
+        return false;
+    }
+
+    fonts_[fontId] = {fontId, font};
+    LOG_INFO("ImGuiService::RegisterFont: registered font ID {} from compressed data (size={})", fontId, sizePixels);
+    return true;
+}
+
+
+bool ImGuiService::UnregisterFont(uint32_t fontId) {
+    std::lock_guard lock(fontsMutex_);
+
+    if (!fonts_.contains(fontId)) {
+        LOG_WARN("ImGuiService::UnregisterFont: font ID {} not found", fontId);
+        return false;
+    }
+
+    fonts_.erase(fontId);
+    LOG_INFO("ImGuiService::UnregisterFont: unregistered font ID {}", fontId);
+    return true;
+}
+
+void* ImGuiService::GetFont(const uint32_t fontId) const {
+    if (fontId == 0) {
+        // Return default font
+        return ImGui::GetIO().FontDefault;
+    }
+
+    std::lock_guard lock(fontsMutex_);
+    auto it = fonts_.find(fontId);
+    if (it == fonts_.end()) {
+        return nullptr;
+    }
+
+    return it->second.font;
+}
+
+bool ImGuiService::CreateSurfaceForTexture_(ManagedTexture& tex) {
+    if (!IsDeviceReady()) {
+        return false;
+    }
+
+    // Acquire D3D interfaces with RAII cleanup
+    IDirect3DDevice7* d3d = nullptr;
+    IDirectDraw7* dd = nullptr;
+    if (!AcquireD3DInterfaces(&d3d, &dd)) {
+        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: failed to acquire D3D interfaces");
+        return false;
+    }
+
+    // RAII cleanup for interfaces
+    struct D3DCleanup {
+        IDirect3DDevice7* d3d;
+        IDirectDraw7* dd;
+
+        ~D3DCleanup() {
+            if (d3d) d3d->Release();
+            if (dd) dd->Release();
+        }
+    } cleanup{d3d, dd};
+
+    // Set up surface descriptor
+    DDSURFACEDESC2 ddsd{};
+    ddsd.dwSize = sizeof(ddsd);
+    ddsd.dwFlags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
+    ddsd.dwWidth = tex.width;
+    ddsd.dwHeight = tex.height;
+    ddsd.ddsCaps.dwCaps = DDSCAPS_TEXTURE;
+
+    // Use video memory or system memory based on flag
+    if (tex.useSystemMemory) {
+        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
+    }
+    else {
+        ddsd.ddsCaps.dwCaps |= DDSCAPS_VIDEOMEMORY;
+    }
+
+    // 32-bit ARGB pixel format
+    ddsd.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
+    ddsd.ddpfPixelFormat.dwFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
+    ddsd.ddpfPixelFormat.dwRGBBitCount = 32;
+    ddsd.ddpfPixelFormat.dwRBitMask = 0x00FF0000;
+    ddsd.ddpfPixelFormat.dwGBitMask = 0x0000FF00;
+    ddsd.ddpfPixelFormat.dwBBitMask = 0x000000FF;
+    ddsd.ddpfPixelFormat.dwRGBAlphaBitMask = 0xFF000000;
+
+    IDirectDrawSurface7* surface = nullptr;
+    HRESULT hr = dd->CreateSurface(&ddsd, &surface, nullptr);
+
+    // Fallback to system memory if video memory is exhausted
+    if (hr == DDERR_OUTOFVIDEOMEMORY && !tex.useSystemMemory) {
+        LOG_WARN(
+            "ImGuiService::CreateSurfaceForTexture_: video memory exhausted, falling back to system memory (id={})",
+            tex.id);
+        ddsd.ddsCaps.dwCaps &= ~DDSCAPS_VIDEOMEMORY;
+        ddsd.ddsCaps.dwCaps |= DDSCAPS_SYSTEMMEMORY;
+        hr = dd->CreateSurface(&ddsd, &surface, nullptr);
+        if (SUCCEEDED(hr)) {
+            tex.useSystemMemory = true;
+        }
+    }
+
+    if (FAILED(hr) || !surface) {
+        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: CreateSurface failed (hr=0x{:08X}, id={})", hr, tex.id);
+        return false;
+    }
+
+    // Lock surface for writing
+    DDSURFACEDESC2 lockDesc{};
+    lockDesc.dwSize = sizeof(lockDesc);
+    hr = surface->Lock(nullptr, &lockDesc, DDLOCK_WAIT | DDLOCK_WRITEONLY, nullptr);
+    if (FAILED(hr)) {
+        LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: Lock failed (hr=0x{:08X}, id={})", hr, tex.id);
+        surface->Release();
+        return false;
+    }
+
+    // Copy pixel data row-by-row (respecting lPitch)
+    const auto* srcPixels = reinterpret_cast<const uint8_t*>(tex.sourceData.data());
+    auto* dstPixels = static_cast<uint8_t*>(lockDesc.lpSurface);
+    const uint32_t srcPitch = tex.width * 4; // RGBA32
+    const uint32_t dstPitch = lockDesc.lPitch;
+
+    for (uint32_t y = 0; y < tex.height; ++y) {
+        std::memcpy(dstPixels + y * dstPitch, srcPixels + y * srcPitch, srcPitch);
+    }
+
+    surface->Unlock(nullptr);
+
+    // Clean up old surface if it exists
+    if (tex.surface) {
+        tex.surface->Release();
+    }
+
+    tex.surface = surface;
+    tex.needsRecreation = false;
+    uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
+    tex.creationGeneration = currentGen;
+
+    LOG_INFO("ImGuiService::CreateSurfaceForTexture_: surface created successfully (id={}, gen={})",
+             tex.id, currentGen);
+    return true;
+}
+
 void ImGuiService::OnDeviceLost_() {
     deviceLost_ = true;
 
@@ -882,70 +1000,3 @@ void ImGuiService::InvalidateAllTextures_() {
         tex.needsRecreation = true;
     }
 }
-
-bool ImGuiService::RegisterFont(uint32_t fontId, const char* filePath, float size) {
-    if (!filePath || size <= 0.0f) {
-        LOG_ERROR("ImGuiService::RegisterFont: invalid arguments (fontId={}, size={})", fontId, size);
-        return false;
-    }
-
-    ImGuiIO& io = ImGui::GetIO();
-    if (!io.Fonts) {
-        LOG_ERROR("ImGuiService::RegisterFont: ImGui not initialized");
-        return false;
-    }
-
-    std::lock_guard lock(fontsMutex_);
-
-    // Check if font ID already registered
-    if (fonts_.contains(fontId)) {
-        LOG_WARN("ImGuiService::RegisterFont: font ID {} already registered", fontId);
-        return false;
-    }
-
-    // Configure font with improved rendering
-    ImFontConfig fontConfig;
-    fontConfig.OversampleH = 3;
-    fontConfig.OversampleV = 3;
-    fontConfig.PixelSnapH = true;
-
-    // Load the font
-    ImFont* font = io.Fonts->AddFontFromFileTTF(filePath, size, &fontConfig);
-    if (!font) {
-        LOG_ERROR("ImGuiService::RegisterFont: failed to load font from '{}'", filePath);
-        return false;
-    }
-
-    fonts_[fontId] = { fontId, font };
-    LOG_INFO("ImGuiService::RegisterFont: registered font ID {} from '{}' (size={})", fontId, filePath, size);
-    return true;
-}
-
-bool ImGuiService::UnregisterFont(uint32_t fontId) {
-    std::lock_guard lock(fontsMutex_);
-
-    if (!fonts_.contains(fontId)) {
-        LOG_WARN("ImGuiService::UnregisterFont: font ID {} not found", fontId);
-        return false;
-    }
-
-    fonts_.erase(fontId);
-    LOG_INFO("ImGuiService::UnregisterFont: unregistered font ID {}", fontId);
-    return true;
-}
-
-void* ImGuiService::GetFont(const uint32_t fontId) const {
-    if (fontId == 0) {
-        // Return default font
-        return ImGui::GetIO().FontDefault;
-    }
-
-    std::lock_guard lock(fontsMutex_);
-    auto it = fonts_.find(fontId);
-    if (it == fonts_.end()) {
-        return nullptr;
-    }
-
-    return it->second.font;
-}
-

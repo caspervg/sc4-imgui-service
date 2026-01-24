@@ -91,9 +91,13 @@ public:
     [[nodiscard]] virtual bool IsTextureValid(ImGuiTextureHandle handle) const = 0;
 
     // Loads a TTF font from file and registers it with the given ID.
-    // size: font size in pixels
     // Returns true on success, false if font cannot be loaded or ID is already registered.
-    virtual bool RegisterFont(uint32_t fontId, const char* filePath, float size) = 0;
+    virtual bool RegisterFont(uint32_t fontId, const char* filePath, float sizePixels) = 0;
+
+    // Loads a compressed TTF font from memory and registers it with the given ID.
+    // See https://github.com/ocornut/imgui/blob/master/docs/FONTS.md#loading-font-data-embedded-in-source-code
+    // Returns true on success, false if font cannot be loaded or ID is already registered
+    virtual bool RegisterFont(uint32_t fontId, const void* compressedFontData, int compressedFontDataSize, float sizePixels) = 0;
 
     // Unregisters a font; returns false if not found.
     virtual bool UnregisterFont(uint32_t fontId) = 0;

@@ -46,7 +46,8 @@ public:
     void ReleaseTexture(ImGuiTextureHandle handle) override;
     [[nodiscard]] bool IsTextureValid(ImGuiTextureHandle handle) const override;
 
-    bool RegisterFont(uint32_t fontId, const char* filePath, float size) override;
+    bool RegisterFont(uint32_t fontId, const char* filePath, float sizePixels) override;
+    bool RegisterFont(uint32_t fontId, const void* compressedFontData, int compressedFontDataSize, float sizePixels) override;
     bool UnregisterFont(uint32_t fontId) override;
     [[nodiscard]] void* GetFont(uint32_t fontId) const override;
 

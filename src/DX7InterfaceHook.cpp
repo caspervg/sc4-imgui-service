@@ -1,12 +1,13 @@
 #include "DX7InterfaceHook.h"
-#include "utils/Logger.h"
+
+#include <atomic>
+#include <Windows.h>
 
 #include "imgui.h"
 #include "imgui_impl_dx7.h"
 #include "imgui_impl_win32.h"
-
-#include <atomic>
-#include <Windows.h>
+#include "utils/Fonts.h"
+#include "utils/Logger.h"
 
 namespace {
     constexpr size_t kEndSceneVTableIndex = 6;
@@ -92,18 +93,18 @@ bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
 
     // Configure font with improved rendering
     ImFontConfig fontConfig;
-    fontConfig.OversampleH = 3;  // Horizontal oversampling for crisper text
-    fontConfig.OversampleV = 3;  // Vertical oversampling for crisper text
+    fontConfig.OversampleH = 2;  // Horizontal oversampling for crisper text
+    fontConfig.OversampleV = 2;  // Vertical oversampling for crisper text
     fontConfig.PixelSnapH = true;  // Snap to pixel grid for sharper rendering
     fontConfig.GlyphExtraAdvanceX = 1.0f;
 
     // Load ProggyClean font
-    ImFont* font = io.Fonts->AddFontFromFileTTF(R"(C:\Users\caspe\Downloads\Stoclet_ITC_TT_Bold.ttf)", 16.0f, &fontConfig);
+    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(ProggyVector_compressed_data, ProggyVector_compressed_size, 16.0f, &fontConfig);
     if (font) {
         io.FontDefault = font;
-        LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded ProggyClean font (size=13)");
+        LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded custom font");
     } else {
-        LOG_WARN("DX7InterfaceHook::InitializeImGui: failed to load ProggyClean, using default font");
+        LOG_WARN("DX7InterfaceHook::InitializeImGui: failed to load custom font, will use the d3d7imgui default");
     }
 
     ImGui_ImplWin32_Init(hwnd);
