@@ -243,32 +243,52 @@ set(IMGUI_TEXTURE_SAMPLE_SOURCES
         ${CMAKE_SOURCE_DIR}/src/sample/ImGuiTextureSample.cpp
         ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
 )
-
 add_library(SC4ImGuiTextureSample SHARED ${IMGUI_TEXTURE_SAMPLE_SOURCES} SC4ImGuiTextureSample.def)
-
 target_include_directories(SC4ImGuiTextureSample PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/src/service
         ${IMGUI_DIR}
 )
-
 target_link_libraries(SC4ImGuiTextureSample PRIVATE
         imgui
         gzcom2
         spdlog
 )
-
 target_compile_definitions(SC4ImGuiTextureSample PRIVATE IMGUI_DLL_IMPORT)
-
 set_target_properties(SC4ImGuiTextureSample PROPERTIES
         OUTPUT_NAME "SC4ImGuiTextureSample"
         SUFFIX ".dll"
         PREFIX ""
 )
 
+# ImGui transform debug
+set(IMGUI_DEBUG_TRANSFORM_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/sample/ImGuiTransformDebugDirector.cpp
+        ${CMAKE_SOURCE_DIR}/src/service/TransformLogger.cpp
+        ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
+)
+add_library(SC4ImGuiTransformDebug SHARED
+    ${IMGUI_DEBUG_TRANSFORM_SOURCES}
+    SC4ImGuiTransformDebugSample.def
+)
+target_link_libraries(SC4ImGuiTransformDebug PRIVATE
+        imgui
+        gzcom2
+        spdlog
+)
+target_compile_definitions(SC4ImGuiTransformDebug PRIVATE IMGUI_DLL_IMPORT)
+set_target_properties(SC4ImGuiTransformDebug PROPERTIES
+        OUTPUT_NAME "SC4ImGuiTransformDebug"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+if(WIN32)
+    target_link_libraries(SC4ImGuiTransformDebug PRIVATE kernel32 user32 Version ddraw dxguid)
+endif()
+
 
 add_custom_target(SC4ImGuiAllTargets
-        DEPENDS imgui SC4ImGuiService SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample
+        DEPENDS imgui SC4ImGuiService SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4ImGuiTransformDebug
 )
 
 # Automatic deployment to SC4 directories
@@ -280,6 +300,7 @@ if(WIN32 AND NOT DEFINED ENV{CI})
             "C:/Program Files/Maxis/SimCity 4 Deluxe"
             "C:/Program Files (x86)/Steam/steamapps/common/SimCity 4 Deluxe"
             "C:/Program Files/Steam/steamapps/common/SimCity 4 Deluxe"
+            "C:/Program Files (x86)/GOG Galaxy/Games/SimCity 4 Deluxe Edition"
     )
 
     foreach(SC4_PATH ${SC4_INSTALL_PATHS})
@@ -342,6 +363,14 @@ if(WIN32 AND NOT DEFINED ENV{CI})
                 $<TARGET_FILE:SC4ImGuiTextureSample>
                 "${SC4_PLUGINS_DIR}/"
                 COMMENT "Deploying SC4ImGuiTextureSample.dll to Plugins folder"
+        )
+
+        add_custom_command(TARGET SC4ImGuiTransformDebug POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:SC4ImGuiTransformDebug>
+                "${SC4_PLUGINS_DIR}/"
+                COMMENT "Deploying SC4ImGuiTransformDebug.dll to Plugins folder"
         )
 
         message(STATUS "Deployment targets configured:")
