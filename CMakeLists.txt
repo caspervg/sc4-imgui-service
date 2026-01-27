@@ -287,6 +287,10 @@ target_link_libraries(SC4WorldProjectionSample PRIVATE
         spdlog
 )
 
+if(WIN32)
+    target_link_libraries(SC4WorldProjectionSample PRIVATE gdiplus)
+endif()
+
 target_compile_definitions(SC4WorldProjectionSample PRIVATE IMGUI_DLL_IMPORT)
 
 set_target_properties(SC4WorldProjectionSample PROPERTIES
