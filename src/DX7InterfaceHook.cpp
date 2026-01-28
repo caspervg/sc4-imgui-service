@@ -99,7 +99,7 @@ bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
     fontConfig.GlyphExtraAdvanceX = 1.0f;
 
     // Load ProggyClean font
-    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(ProggyVector_compressed_data, ProggyVector_compressed_size, 16.0f, &fontConfig);
+    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(ProggyVector_compressed_data, ProggyVector_compressed_size, 13.0f, &fontConfig);
     if (font) {
         io.FontDefault = font;
         LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded custom font");
