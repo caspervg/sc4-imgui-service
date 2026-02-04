@@ -225,9 +225,20 @@ void* ImGuiService::GetContext() const {
 }
 
 bool ImGuiService::RegisterPanel(const ImGuiPanelDesc& desc) {
+    if (desc.id == 0) {
+        LOG_WARN("ImGuiService: rejected panel {} (null id)", desc.id);
+        return false;
+    }
     if (!desc.on_render) {
         LOG_WARN("ImGuiService: rejected panel {} (null on_render)", desc.id);
         return false;
+    }
+    if (desc.fontId != 0) {
+        std::lock_guard lock(fontsMutex_);
+        if (!fonts_.contains(desc.fontId)) {
+            LOG_WARN("ImGuiService: rejected panel {} (invalid font id {})", desc.id, desc.fontId);
+            return false;
+        }
     }
 
     {
@@ -355,7 +366,7 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
                  prevThreadId, threadId);
         g_renderThreadId.store(threadId, std::memory_order_release);
     }
-    if (!imguiInitialized_) {
+    if (!imguiInitialized_ || deviceLost_) {
         return;
     }
 
@@ -370,33 +381,26 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
     if (!d3dx || device != d3dx->GetD3DDevice()) {
         return;
     }
+    auto* dd = d3dx->GetDD();
+    if (dd) {
+        HRESULT hr = dd->TestCooperativeLevel();
+        if (FAILED(hr)) {
+            if (!deviceLost_) {
+                OnDeviceLost_();
+            }
+            return;
+        } else if (deviceLost_) {
+            OnDeviceRestored();
+        }
+    } else {
+        return;
+    }
+
     if (!ImGui::GetCurrentContext()) {
         return;
     }
 
     InitializePanels_();
-
-    auto* dd = d3dx->GetDD();
-    if (!dd) {
-        return;
-    }
-
-    // Check for device loss
-    HRESULT hr = dd->TestCooperativeLevel();
-    if (hr == DDERR_SURFACELOST || hr == DDERR_WRONGMODE) {
-        // Treat only explicit device loss conditions as device lost
-        if (!deviceLost_) {
-            OnDeviceLost_();
-        }
-        return; // Skip rendering when device is lost
-    }
-    else if (FAILED(hr)) {
-        // Non-device-loss failure: skip rendering but do not change deviceLost_ state
-        return;
-    }
-    else if (deviceLost_) {
-        OnDeviceRestored_();
-    }
 
     ImGui_ImplWin32_NewFrame();
     ImGui_ImplDX7_NewFrame();
@@ -442,7 +446,6 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
         }
 
         for (auto& item : renderQueue) {
-            if (item.callback) {
                 item.callback(item.data);
             }
             if (item.cleanup) {
@@ -966,7 +969,13 @@ bool ImGuiService::CreateSurfaceForTexture_(ManagedTexture& tex) {
     // Lock surface for writing
     DDSURFACEDESC2 lockDesc{};
     lockDesc.dwSize = sizeof(lockDesc);
-    hr = surface->Lock(nullptr, &lockDesc, DDLOCK_WAIT | DDLOCK_WRITEONLY, nullptr);
+    hr = surface->Lock(nullptr, &lockDesc, DDLOCK_WRITEONLY, nullptr);
+    if (hr == DDERR_SURFACELOST) {
+        LOG_WARN("ImGuiService::CreateSurfaceForTexture_: Surface lost during lock (id={})", tex.id);
+        surface->Release();
+        tex.needsRecreation = true;
+        return false;
+    }
     if (FAILED(hr)) {
         LOG_ERROR("ImGuiService::CreateSurfaceForTexture_: Lock failed (hr=0x{:08X}, id={})", hr, tex.id);
         surface->Release();
@@ -1003,24 +1012,21 @@ bool ImGuiService::CreateSurfaceForTexture_(ManagedTexture& tex) {
 void ImGuiService::OnDeviceLost_() {
     deviceLost_ = true;
 
-    // Invalidate all texture surfaces
     {
-        std::lock_guard lock(texturesMutex_);
-        for (auto& tex : textures_ | std::views::values) {
-            if (tex.surface) {
-                tex.surface->Release();
-                tex.surface = nullptr;
+        std::lock_guard lock(panelsMutex_) {
+            for (auto& panel : panels_) {
+                if (panel.desc.on_device_lost) {
+                    panel.desc.on_device_lost(panel.desc.data);
+                }
             }
-            tex.needsRecreation = true;
         }
     }
 
     ImGui_ImplDX7_InvalidateDeviceObjects();
 
-    {
-        std::lock_guard lock(texturesMutex_);
-        LOG_WARN("ImGuiService::OnDeviceLost_: device lost, invalidated {} texture(s)", textures_.size());
-    }
+    InvalidateAllTextures_();
+
+    LOG_WARN("ImGuiService::OnDeviceLost_: device lost, notified panels and invalidated textures");
 }
 
 void ImGuiService::OnDeviceRestored_() {
@@ -1031,7 +1037,16 @@ void ImGuiService::OnDeviceRestored_() {
 
     ImGui_ImplDX7_CreateDeviceObjects();
 
-    LOG_INFO("ImGuiService::OnDeviceRestored_: device restored (new gen={}), textures will recreate on-demand", newGen);
+    {
+        std::lock_guard lock(panelsMutex_);
+        for (auto& panel : panels_) {
+            if (panel.desc.on_device_restored) {
+                panel.desc.on_device_restored(panel.desc.data);
+            }
+        }
+    }
+
+    LOG_INFO("ImGuiService::OnDeviceRestored_: device restored (new gen={}) and notified panels", newGen);
 }
 
 void ImGuiService::InvalidateAllTextures_() {

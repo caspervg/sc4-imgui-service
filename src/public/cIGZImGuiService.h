@@ -13,6 +13,8 @@ struct ImGuiPanelDesc
     void (*on_visible_changed)(void* data, bool visible){};
     void (*on_shutdown)(void* data){};
     void (*on_unregister)(void* data){};
+	void (*on_device_lost)(void* data){};
+	void (*on_device_restored)(void* data){};
     void* data{};
     uint32_t fontId{0};  // 0 = use default font
 };
