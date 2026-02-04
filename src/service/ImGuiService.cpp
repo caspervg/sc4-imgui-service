@@ -446,8 +446,7 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
         }
 
         for (auto& item : renderQueue) {
-                item.callback(item.data);
-            }
+            item.callback(item.data);
             if (item.cleanup) {
                 item.cleanup(item.data);
             }
