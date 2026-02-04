@@ -66,10 +66,11 @@ jobs:
           New-Item -ItemType Directory -Path $outDir -Force | Out-Null
           $dlls = @(
             "imgui.dll",
-            "SC4ImGuiService.dll",
+            "SC4CustomServices.dll",
             "SC4ImGuiSample.dll",
             "SC4ImGuiSampleCity.dll",
-            "SC4ImGuiSampleDemo.dll"
+            "SC4ImGuiSampleDemo.dll",
+            "SC4WorldProjectionSample.dll"
           )
           $paths = $dlls | ForEach-Object { Join-Path $buildDir $_ }
           $archive = Join-Path $outDir ("sc4-imgui-backend-" + "${{ github.ref_name }}" + "-win32-release.zip")
