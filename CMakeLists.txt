@@ -122,6 +122,7 @@ include_directories(
 set(CUSTOM_SERVICES_SOURCES
         ${CMAKE_SOURCE_DIR}/src/service/ImGuiService.cpp
         ${CMAKE_SOURCE_DIR}/src/service/S3DCameraService.cpp
+        ${CMAKE_SOURCE_DIR}/src/service/DrawService.cpp
         ${CMAKE_SOURCE_DIR}/src/service/CustomServicesDirector.cpp
         ${CMAKE_SOURCE_DIR}/src/utils/VersionDetection.cpp
         ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
@@ -302,9 +303,93 @@ set_target_properties(SC4WorldProjectionSample PROPERTIES
         PREFIX ""
 )
 
+# S3D Camera debug sample DLL
+set(S3D_CAMERA_DEBUG_SAMPLE_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/sample/S3DCameraDebugSampleDirector.cpp
+        ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
+)
+
+add_library(SC4S3DCameraDebugSample SHARED ${S3D_CAMERA_DEBUG_SAMPLE_SOURCES} SC4S3DCameraDebugSample.def)
+
+target_include_directories(SC4S3DCameraDebugSample PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/service
+        ${IMGUI_DIR}
+)
+
+target_link_libraries(SC4S3DCameraDebugSample PRIVATE
+        imgui
+        gzcom2
+        spdlog
+)
+
+target_compile_definitions(SC4S3DCameraDebugSample PRIVATE IMGUI_DLL_IMPORT)
+
+set_target_properties(SC4S3DCameraDebugSample PROPERTIES
+        OUTPUT_NAME "SC4S3DCameraDebugSample"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+
+# Overlay Manager sample DLL
+set(OVERLAY_MANAGER_SAMPLE_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/sample/OverlayManagerSampleDirector.cpp
+        ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
+)
+
+add_library(SC4OverlayManagerSample SHARED ${OVERLAY_MANAGER_SAMPLE_SOURCES} SC4OverlayManagerSample.def)
+
+target_include_directories(SC4OverlayManagerSample PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/service
+        ${IMGUI_DIR}
+)
+
+target_link_libraries(SC4OverlayManagerSample PRIVATE
+        imgui
+        gzcom2
+        spdlog
+)
+
+target_compile_definitions(SC4OverlayManagerSample PRIVATE IMGUI_DLL_IMPORT)
+
+set_target_properties(SC4OverlayManagerSample PROPERTIES
+        OUTPUT_NAME "SC4OverlayManagerSample"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+
+# Draw Service sample DLL
+set(DRAW_SERVICE_SAMPLE_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/sample/DrawServiceSampleDirector.cpp
+        ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
+)
+
+add_library(SC4DrawServiceSample SHARED ${DRAW_SERVICE_SAMPLE_SOURCES} SC4DrawServiceSample.def)
+
+target_include_directories(SC4DrawServiceSample PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/service
+        ${IMGUI_DIR}
+)
+
+target_link_libraries(SC4DrawServiceSample PRIVATE
+        imgui
+        gzcom2
+        spdlog
+)
+
+target_compile_definitions(SC4DrawServiceSample PRIVATE IMGUI_DLL_IMPORT)
+
+set_target_properties(SC4DrawServiceSample PROPERTIES
+        OUTPUT_NAME "SC4DrawServiceSample"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+
 
 add_custom_target(SC4ImGuiAllTargets
-        DEPENDS imgui SC4CustomServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample
+        DEPENDS imgui SC4CustomServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample
 )
 
 # Automatic deployment to SC4 directories

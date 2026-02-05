@@ -40,7 +40,7 @@ public:
     bool RegisterPanel(const ImGuiPanelDesc& desc) override;
     bool UnregisterPanel(uint32_t panelId) override;
     bool SetPanelVisible(uint32_t panelId, bool visible) override;
-    bool QueueRender(ImGuiRenderCallback callback, void* data, ImGuiRenderCleanup cleanup = nullptr) override;
+    bool QueueRender(ImGuiRenderCallback callback, void* data, ImGuiRenderCleanup cleanup) override;
     bool AcquireD3DInterfaces(IDirect3DDevice7** outD3D, IDirectDraw7** outDD) override;
     [[nodiscard]] bool IsDeviceReady() const override;
     [[nodiscard]] uint32_t GetDeviceGeneration() const override;
