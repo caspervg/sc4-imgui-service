@@ -474,6 +474,14 @@ if(WIN32 AND NOT DEFINED ENV{CI})
                 COMMENT "Deploying SC4WorldProjectionSample.dll to Plugins folder"
         )
 
+        add_custom_command(TARGET SC4DrawServiceSample POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:SC4DrawServiceSample>
+                "${SC4_PLUGINS_DIR}/"
+                COMMENT "Deploying SC4DrawServiceSample.dll to Plugins folder"
+        )
+
         message(STATUS "Deployment targets configured:")
         message(STATUS "  - imgui.dll -> ${SC4_INSTALL_DIR}/Apps/")
         message(STATUS "  - SC4CustomServices.dll -> ${SC4_PLUGINS_DIR}/")
@@ -482,6 +490,7 @@ if(WIN32 AND NOT DEFINED ENV{CI})
         message(STATUS "  - SC4ImGuiSampleDemo.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4ImGuiTextureSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4WorldProjectionSample.dll -> ${SC4_PLUGINS_DIR}/")
+        message(STATUS "  - SC4DrawServiceSample.dll -> ${SC4_PLUGINS_DIR}/")
     else()
         message(WARNING "SC4 installation not found. Manual deployment required.")
     endif()

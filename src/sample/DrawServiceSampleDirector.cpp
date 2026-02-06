@@ -13,7 +13,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <d3d.h>
+#include <d3dtypes.h>
 #include <vector>
+#include <ddraw.h>
 #include <windows.h>
 
 namespace {
@@ -33,6 +36,7 @@ namespace {
 
     constexpr size_t kDrawPassCount = static_cast<size_t>(DrawPass::Count);
     constexpr size_t kHookByteCount = 5;
+    constexpr size_t kCallSitePatchCount = 9;
     constexpr size_t kEventRingCapacity = 2048;
 
     struct HookEvent {
@@ -52,6 +56,16 @@ namespace {
         bool installed = false;
     };
 
+    struct CallSitePatch {
+        const char* name;
+        DrawPass pass;
+        uintptr_t callSiteAddress;
+        uintptr_t originalTarget = 0;
+        int32_t originalRel = 0;
+        void* hookFn;
+        bool installed = false;
+    };
+
     std::atomic<uint64_t> gEventSeq{0};
     std::array<HookEvent, kEventRingCapacity> gEventRing{};
     std::array<std::atomic<uint32_t>, kDrawPassCount> gBeginCounts{};
@@ -64,6 +78,351 @@ namespace {
     void(__thiscall* gOrigPreDynamic)(void*) = nullptr;
     void(__thiscall* gOrigDynamic)(void*) = nullptr;
     void(__thiscall* gOrigPostDynamic)(void*) = nullptr;
+    std::atomic<bool> gEnablePreDynamicDepthLayeredOverlay{false};
+    std::atomic<int> gPreDynamicDepthOffset{-8};
+    std::atomic<bool> gEnablePostDynamicDebugBox{false};
+    std::atomic<bool> gEnablePostDynamicD3D7Overlay{false};
+    std::atomic<bool> gEnableStaticD3D7DepthOverlay{false};
+    std::atomic<int> gStaticD3D7ZBias{1};
+    std::atomic<float> gStaticOverlayWorldX{1024.0f};
+    std::atomic<float> gStaticOverlayWorldY{270.0f};
+    std::atomic<float> gStaticOverlayWorldZ{1024.0f};
+    std::atomic<uint32_t> gLastD3D7OverlayErrorLogTick{0};
+    std::atomic<cIGZImGuiService*> gImGuiServiceForD3DOverlay{nullptr};
+
+    void* (__thiscall* gGetDrawContext)(void*) =
+        reinterpret_cast<void* (__thiscall*)(void*)>(0x004E82A0);
+    void (__thiscall* gDrawBoundingBox)(void*, float*, const void*) =
+        reinterpret_cast<void (__thiscall*)(void*, float*, const void*)>(0x007D5030);
+    void (__fastcall* gSetDefaultRenderStateUnilaterally)(void*) =
+        reinterpret_cast<void (__fastcall*)(void*)>(0x007D5230);
+    void (__thiscall* gEnableDepthTestFlag)(void*, char) =
+        reinterpret_cast<void (__thiscall*)(void*, char)>(0x007D27B0);
+    void (__thiscall* gEnableDepthMaskFlag)(void*, bool) =
+        reinterpret_cast<void (__thiscall*)(void*, bool)>(0x007D2800);
+    void (__thiscall* gEnableBlendStateFlag)(void*, char) =
+        reinterpret_cast<void (__thiscall*)(void*, char)>(0x007D4010);
+    void (__thiscall* gSetBlendFunc)(void*, uint32_t, uint32_t) =
+        reinterpret_cast<void (__thiscall*)(void*, uint32_t, uint32_t)>(0x007D28F0);
+    void (__thiscall* gSetDepthFunc)(void*, uint32_t) =
+        reinterpret_cast<void (__thiscall*)(void*, uint32_t)>(0x007D28A0);
+    void (__thiscall* gSetDepthOffset)(void*, int) =
+        reinterpret_cast<void (__thiscall*)(void*, int)>(0x007D4480);
+
+    struct D3D7StateGuard {
+        explicit D3D7StateGuard(IDirect3DDevice7* deviceIn)
+            : device(deviceIn) {
+            if (!device) {
+                return;
+            }
+            okZEnable = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ZENABLE, &zEnable));
+            okZWrite = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ZWRITEENABLE, &zWrite));
+            okLighting = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_LIGHTING, &lighting));
+            okAlphaBlend = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &alphaBlend));
+            okSrcBlend = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_SRCBLEND, &srcBlend));
+            okDstBlend = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_DESTBLEND, &dstBlend));
+            okCullMode = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_CULLMODE, &cullMode));
+            okZBias = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ZBIAS, &zBias));
+            okTexture0 = SUCCEEDED(device->GetTexture(0, &texture0));
+            okTss0ColorOp = SUCCEEDED(device->GetTextureStageState(0, D3DTSS_COLOROP, &tss0ColorOp));
+            okTss0ColorArg1 = SUCCEEDED(device->GetTextureStageState(0, D3DTSS_COLORARG1, &tss0ColorArg1));
+            okTss0AlphaOp = SUCCEEDED(device->GetTextureStageState(0, D3DTSS_ALPHAOP, &tss0AlphaOp));
+            okTss0AlphaArg1 = SUCCEEDED(device->GetTextureStageState(0, D3DTSS_ALPHAARG1, &tss0AlphaArg1));
+            okTss1ColorOp = SUCCEEDED(device->GetTextureStageState(1, D3DTSS_COLOROP, &tss1ColorOp));
+            okTss1AlphaOp = SUCCEEDED(device->GetTextureStageState(1, D3DTSS_ALPHAOP, &tss1AlphaOp));
+        }
+
+        ~D3D7StateGuard() {
+            if (!device) {
+                return;
+            }
+            if (okZEnable) {
+                device->SetRenderState(D3DRENDERSTATE_ZENABLE, zEnable);
+            }
+            if (okZWrite) {
+                device->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, zWrite);
+            }
+            if (okLighting) {
+                device->SetRenderState(D3DRENDERSTATE_LIGHTING, lighting);
+            }
+            if (okAlphaBlend) {
+                device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, alphaBlend);
+            }
+            if (okSrcBlend) {
+                device->SetRenderState(D3DRENDERSTATE_SRCBLEND, srcBlend);
+            }
+            if (okDstBlend) {
+                device->SetRenderState(D3DRENDERSTATE_DESTBLEND, dstBlend);
+            }
+            if (okCullMode) {
+                device->SetRenderState(D3DRENDERSTATE_CULLMODE, cullMode);
+            }
+            if (okZBias) {
+                device->SetRenderState(D3DRENDERSTATE_ZBIAS, zBias);
+            }
+            if (okTss0ColorOp) {
+                device->SetTextureStageState(0, D3DTSS_COLOROP, tss0ColorOp);
+            }
+            if (okTss0ColorArg1) {
+                device->SetTextureStageState(0, D3DTSS_COLORARG1, tss0ColorArg1);
+            }
+            if (okTss0AlphaOp) {
+                device->SetTextureStageState(0, D3DTSS_ALPHAOP, tss0AlphaOp);
+            }
+            if (okTss0AlphaArg1) {
+                device->SetTextureStageState(0, D3DTSS_ALPHAARG1, tss0AlphaArg1);
+            }
+            if (okTss1ColorOp) {
+                device->SetTextureStageState(1, D3DTSS_COLOROP, tss1ColorOp);
+            }
+            if (okTss1AlphaOp) {
+                device->SetTextureStageState(1, D3DTSS_ALPHAOP, tss1AlphaOp);
+            }
+            device->SetTexture(0, texture0);
+            if (texture0) {
+                texture0->Release();
+            }
+        }
+
+        IDirect3DDevice7* device = nullptr;
+        bool okZEnable = false;
+        bool okZWrite = false;
+        bool okLighting = false;
+        bool okAlphaBlend = false;
+        bool okSrcBlend = false;
+        bool okDstBlend = false;
+        bool okCullMode = false;
+        bool okZBias = false;
+        bool okTexture0 = false;
+        bool okTss0ColorOp = false;
+        bool okTss0ColorArg1 = false;
+        bool okTss0AlphaOp = false;
+        bool okTss0AlphaArg1 = false;
+        bool okTss1ColorOp = false;
+        bool okTss1AlphaOp = false;
+        DWORD zEnable = 0;
+        DWORD zWrite = 0;
+        DWORD lighting = 0;
+        DWORD alphaBlend = 0;
+        DWORD srcBlend = 0;
+        DWORD dstBlend = 0;
+        DWORD cullMode = 0;
+        DWORD zBias = 0;
+        DWORD tss0ColorOp = 0;
+        DWORD tss0ColorArg1 = 0;
+        DWORD tss0AlphaOp = 0;
+        DWORD tss0AlphaArg1 = 0;
+        DWORD tss1ColorOp = 0;
+        DWORD tss1AlphaOp = 0;
+        IDirectDrawSurface7* texture0 = nullptr;
+    };
+
+    struct Dx7DebugVertex {
+        float x;
+        float y;
+        float z;
+        float rhw;
+        DWORD diffuse;
+    };
+
+    struct Dx7WorldOverlayVertex {
+        float x;
+        float y;
+        float z;
+        DWORD diffuse;
+    };
+
+    void DrawStaticD3D7DepthOverlay() {
+        auto* imguiService = gImGuiServiceForD3DOverlay.load(std::memory_order_acquire);
+        if (!imguiService) {
+            return;
+        }
+
+        IDirect3DDevice7* device = nullptr;
+        IDirectDraw7* dd = nullptr;
+        if (!imguiService->AcquireD3DInterfaces(&device, &dd)) {
+            return;
+        }
+        if (dd) {
+            dd->Release();
+            dd = nullptr;
+        }
+        if (!device) {
+            return;
+        }
+
+        {
+            D3D7StateGuard state(device);
+
+            device->SetTexture(0, nullptr);
+            device->SetRenderState(D3DRENDERSTATE_ZENABLE, TRUE);
+            device->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, FALSE);
+            device->SetRenderState(D3DRENDERSTATE_LIGHTING, FALSE);
+            device->SetRenderState(D3DRENDERSTATE_CULLMODE, D3DCULL_NONE);
+            device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, TRUE);
+            device->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
+            device->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_INVSRCALPHA);
+            device->SetRenderState(D3DRENDERSTATE_ZBIAS, gStaticD3D7ZBias.load(std::memory_order_relaxed));
+            device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+            device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+            device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+            device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+            device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+            device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+
+            const float pulse = static_cast<float>((GetTickCount() / 120) % 8) / 7.0f;
+            const DWORD color = D3DRGBA(1.0f, 0.15f + 0.70f * pulse, 0.10f, 0.65f);
+
+            const float centerX = gStaticOverlayWorldX.load(std::memory_order_relaxed);
+            const float centerY = gStaticOverlayWorldY.load(std::memory_order_relaxed);
+            const float centerZ = gStaticOverlayWorldZ.load(std::memory_order_relaxed);
+            constexpr float half = 120.0f;
+            Dx7WorldOverlayVertex verts[] = {
+                {centerX - half, centerY, centerZ - half, color},
+                {centerX + half, centerY, centerZ - half, color},
+                {centerX + half, centerY, centerZ + half, color},
+                {centerX - half, centerY, centerZ - half, color},
+                {centerX + half, centerY, centerZ + half, color},
+                {centerX - half, centerY, centerZ + half, color},
+            };
+
+            const HRESULT hr = device->DrawPrimitive(D3DPT_TRIANGLELIST,
+                                                     D3DFVF_XYZ | D3DFVF_DIFFUSE,
+                                                     verts,
+                                                     6,
+                                                     D3DDP_WAIT);
+            if (FAILED(hr)) {
+                const uint32_t now = GetTickCount();
+                const uint32_t last = gLastD3D7OverlayErrorLogTick.load(std::memory_order_relaxed);
+                if (now - last > 1000) {
+                    gLastD3D7OverlayErrorLogTick.store(now, std::memory_order_relaxed);
+                    LOG_WARN("DrawServiceSample: static depth overlay DrawPrimitive failed hr=0x{:08X}",
+                             static_cast<uint32_t>(hr));
+                }
+            }
+        }
+        device->Release();
+    }
+
+    void DrawD3D7OverlayLines() {
+        auto* imguiService = gImGuiServiceForD3DOverlay.load(std::memory_order_acquire);
+        if (!imguiService) {
+            return;
+        }
+
+        IDirect3DDevice7* device = nullptr;
+        IDirectDraw7* dd = nullptr;
+        if (!imguiService->AcquireD3DInterfaces(&device, &dd)) {
+            return;
+        }
+        if (dd) {
+            dd->Release();
+            dd = nullptr;
+        }
+        if (!device) {
+            return;
+        }
+
+        D3DVIEWPORT7 vp{};
+        if (FAILED(device->GetViewport(&vp)) || vp.dwWidth == 0 || vp.dwHeight == 0) {
+            device->Release();
+            return;
+        }
+
+        {
+            D3D7StateGuard state(device);
+
+            device->SetTexture(0, nullptr);
+            device->SetRenderState(D3DRENDERSTATE_ZENABLE, FALSE);
+            device->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, FALSE);
+            device->SetRenderState(D3DRENDERSTATE_LIGHTING, FALSE);
+            device->SetRenderState(D3DRENDERSTATE_CULLMODE, D3DCULL_NONE);
+            device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, TRUE);
+            device->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
+            device->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_INVSRCALPHA);
+            device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+            device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+            device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+            device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+            device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+            device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+
+            const float pulse = static_cast<float>((GetTickCount() / 120) % 8) / 7.0f;
+            const int red = static_cast<int>(220.0f + 35.0f * pulse);
+            const int green = static_cast<int>(80.0f + 150.0f * pulse);
+            const DWORD color = D3DRGBA(static_cast<float>(red) / 255.0f,
+                                        static_cast<float>(green) / 255.0f,
+                                        0.10f,
+                                        0.90f);
+
+            const float left = static_cast<float>(vp.dwX) + 32.0f;
+            const float top = static_cast<float>(vp.dwY) + 32.0f;
+            const float right = static_cast<float>(vp.dwX + vp.dwWidth) - 32.0f;
+            const float bottom = static_cast<float>(vp.dwY + vp.dwHeight) - 32.0f;
+
+            Dx7DebugVertex verts[] = {
+                {left, top, 0.0f, 1.0f, color}, {right, top, 0.0f, 1.0f, color},
+                {right, top, 0.0f, 1.0f, color}, {right, bottom, 0.0f, 1.0f, color},
+                {right, bottom, 0.0f, 1.0f, color}, {left, bottom, 0.0f, 1.0f, color},
+                {left, bottom, 0.0f, 1.0f, color}, {left, top, 0.0f, 1.0f, color},
+                // diagonal for easy confirmation this is not the bbox path
+                {left, top, 0.0f, 1.0f, color}, {right, bottom, 0.0f, 1.0f, color},
+            };
+
+            const HRESULT hr = device->DrawPrimitive(D3DPT_LINELIST,
+                                                     D3DFVF_XYZRHW | D3DFVF_DIFFUSE,
+                                                     verts,
+                                                     10,
+                                                     D3DDP_WAIT);
+            if (FAILED(hr)) {
+                const uint32_t now = GetTickCount();
+                const uint32_t last = gLastD3D7OverlayErrorLogTick.load(std::memory_order_relaxed);
+                if (now - last > 1000) {
+                    gLastD3D7OverlayErrorLogTick.store(now, std::memory_order_relaxed);
+                    LOG_WARN("DrawServiceSample: D3D7 DrawPrimitive failed hr=0x{:08X}", static_cast<uint32_t>(hr));
+                }
+            }
+        }
+        device->Release();
+    }
+
+    void DrawPreDynamicDepthLayeredOverlay(void* renderer) {
+        if (!renderer || !gGetDrawContext || !gDrawBoundingBox) {
+            return;
+        }
+
+        void* drawContext = gGetDrawContext(renderer);
+        if (!drawContext) {
+            return;
+        }
+
+        // Build a predictable debug state, then draw a terrain-spanning slab with depth test enabled.
+        if (gSetDefaultRenderStateUnilaterally) {
+            gSetDefaultRenderStateUnilaterally(drawContext);
+        }
+        if (gEnableDepthTestFlag) {
+            gEnableDepthTestFlag(drawContext, 1);
+        }
+        if (gEnableDepthMaskFlag) {
+            gEnableDepthMaskFlag(drawContext, false);
+        }
+        if (gEnableBlendStateFlag) {
+            gEnableBlendStateFlag(drawContext, 1);
+        }
+        if (gSetBlendFunc) {
+            gSetBlendFunc(drawContext, D3DBLEND_SRCALPHA, D3DBLEND_INVSRCALPHA);
+        }
+        if (gSetDepthFunc) {
+            gSetDepthFunc(drawContext, D3DCMP_LESSEQUAL);
+        }
+        if (gSetDepthOffset) {
+            gSetDepthOffset(drawContext, gPreDynamicDepthOffset.load(std::memory_order_relaxed));
+        }
+
+        float bbox[6] = {-20000.0f, -20000.0f, -16.0f, 20000.0f, 20000.0f, 16.0f};
+        float color[4] = {0.10f, 1.00f, 0.25f, 0.60f};
+        gDrawBoundingBox(drawContext, bbox, color);
+    }
 
     const char* PassName(const DrawPass pass) {
         switch (pass) {
@@ -111,6 +470,9 @@ namespace {
         if (gOrigStatic) {
             gOrigStatic(self);
         }
+        if (gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed)) {
+            DrawStaticD3D7DepthOverlay();
+        }
         RecordHookEvent(DrawPass::Static, false);
     }
 
@@ -124,6 +486,9 @@ namespace {
 
     void __fastcall HookPreDynamic(void* self, void*) {
         RecordHookEvent(DrawPass::PreDynamic, true);
+        if (gEnablePreDynamicDepthLayeredOverlay.load(std::memory_order_relaxed)) {
+            DrawPreDynamicDepthLayeredOverlay(self);
+        }
         if (gOrigPreDynamic) {
             gOrigPreDynamic(self);
         }
@@ -143,17 +508,42 @@ namespace {
         if (gOrigPostDynamic) {
             gOrigPostDynamic(self);
         }
+        if (gEnablePostDynamicDebugBox.load(std::memory_order_relaxed) &&
+            gGetDrawContext && gDrawBoundingBox) {
+            void* drawContext = gGetDrawContext(self);
+            if (drawContext) {
+                const float pulse = static_cast<float>((GetTickCount() / 150) % 8) / 7.0f;
+                float bbox[6] = {-20000.0f, -20000.0f, -500.0f, 20000.0f, 20000.0f, 500.0f};
+                float color[4] = {1.0f, 0.15f + 0.70f * pulse, 0.10f, 0.85f};
+                gDrawBoundingBox(drawContext, bbox, color);
+                if (gSetDefaultRenderStateUnilaterally) {
+                    gSetDefaultRenderStateUnilaterally(drawContext);
+                }
+            }
+        }
+        if (gEnablePostDynamicD3D7Overlay.load(std::memory_order_relaxed)) {
+            DrawD3D7OverlayLines();
+        }
         RecordHookEvent(DrawPass::PostDynamic, false);
     }
 
-    std::array<InlineHook, kDrawPassCount> gHooks{{
-        {"cSC43DRender::Draw", 0x007CB530, 0, reinterpret_cast<void*>(&HookDraw)},
-        {"cSC43DRender::DrawPreStaticView_", 0x007C3E90, 0, reinterpret_cast<void*>(&HookPreStatic)},
-        {"cSC43DRender::DrawStaticView_", 0x007C7370, 0, reinterpret_cast<void*>(&HookStatic)},
-        {"cSC43DRender::DrawPostStaticView_", 0x007C3ED0, 0, reinterpret_cast<void*>(&HookPostStatic)},
-        {"cSC43DRender::DrawPreDynamicView_", 0x007C3E10, 0, reinterpret_cast<void*>(&HookPreDynamic)},
-        {"cSC43DRender::DrawDynamicView_", 0x007C7830, 0, reinterpret_cast<void*>(&HookDynamic)},
-        {"cSC43DRender::DrawPostDynamicView_", 0x007C3E50, 0, reinterpret_cast<void*>(&HookPostDynamic)}
+    InlineHook gDrawHook{
+        "cSC43DRender::Draw",
+        0x007CB530,
+        0,
+        reinterpret_cast<void*>(&HookDraw)
+    };
+
+    std::array<CallSitePatch, kCallSitePatchCount> gCallSitePatches{{
+        {"Draw::DrawPreStaticView_ [A]", DrawPass::PreStatic, 0x007CB770, 0, 0, reinterpret_cast<void*>(&HookPreStatic)},
+        {"Draw::DrawStaticView_ [A]", DrawPass::Static, 0x007CB777, 0, 0, reinterpret_cast<void*>(&HookStatic)},
+        {"Draw::DrawPostStaticView_ [A]", DrawPass::PostStatic, 0x007CB77E, 0, 0, reinterpret_cast<void*>(&HookPostStatic)},
+        {"Draw::DrawPreStaticView_ [B]", DrawPass::PreStatic, 0x007CB82A, 0, 0, reinterpret_cast<void*>(&HookPreStatic)},
+        {"Draw::DrawStaticView_ [B]", DrawPass::Static, 0x007CB831, 0, 0, reinterpret_cast<void*>(&HookStatic)},
+        {"Draw::DrawPostStaticView_ [B]", DrawPass::PostStatic, 0x007CB838, 0, 0, reinterpret_cast<void*>(&HookPostStatic)},
+        {"Draw::DrawPreDynamicView_", DrawPass::PreDynamic, 0x007CB84C, 0, 0, reinterpret_cast<void*>(&HookPreDynamic)},
+        {"Draw::DrawDynamicView_", DrawPass::Dynamic, 0x007CB853, 0, 0, reinterpret_cast<void*>(&HookDynamic)},
+        {"Draw::DrawPostDynamicView_", DrawPass::PostDynamic, 0x007CB85A, 0, 0, reinterpret_cast<void*>(&HookPostDynamic)}
     }};
 
     uintptr_t ResolvePatchAddress(uintptr_t address) {
@@ -182,6 +572,17 @@ namespace {
             break;
         }
         return current;
+    }
+
+    bool ComputeRelativeCallTarget(const uintptr_t callSiteAddress,
+                                   const uintptr_t targetAddress,
+                                   int32_t& relOut) {
+        const auto delta = static_cast<intptr_t>(targetAddress) - static_cast<intptr_t>(callSiteAddress + kHookByteCount);
+        if (delta < static_cast<intptr_t>(INT32_MIN) || delta > static_cast<intptr_t>(INT32_MAX)) {
+            return false;
+        }
+        relOut = static_cast<int32_t>(delta);
+        return true;
     }
 
     bool InstallInlineHook(InlineHook& hook) {
@@ -257,94 +658,244 @@ namespace {
         hook.installed = false;
     }
 
-    void RefreshOriginalHookTargets() {
-        gOrigDraw = gHooks[0].trampoline
-                        ? reinterpret_cast<uint32_t(__thiscall*)(void*)>(gHooks[0].trampoline)
-                        : nullptr;
-        gOrigPreStatic = gHooks[1].trampoline
-                             ? reinterpret_cast<void(__thiscall*)(void*)>(gHooks[1].trampoline)
-                             : nullptr;
-        gOrigStatic = gHooks[2].trampoline
-                          ? reinterpret_cast<void(__thiscall*)(void*)>(gHooks[2].trampoline)
-                          : nullptr;
-        gOrigPostStatic = gHooks[3].trampoline
-                              ? reinterpret_cast<void(__thiscall*)(void*)>(gHooks[3].trampoline)
-                              : nullptr;
-        gOrigPreDynamic = gHooks[4].trampoline
-                              ? reinterpret_cast<void(__thiscall*)(void*)>(gHooks[4].trampoline)
-                              : nullptr;
-        gOrigDynamic = gHooks[5].trampoline
-                           ? reinterpret_cast<void(__thiscall*)(void*)>(gHooks[5].trampoline)
-                           : nullptr;
-        gOrigPostDynamic = gHooks[6].trampoline
-                               ? reinterpret_cast<void(__thiscall*)(void*)>(gHooks[6].trampoline)
-                               : nullptr;
-    }
+    bool InstallCallSitePatch(CallSitePatch& patch) {
+        if (patch.installed) {
+            return true;
+        }
 
-    bool InstallSingleDrawSequenceHook(const size_t index) {
-        if (index >= gHooks.size()) {
+        auto* site = reinterpret_cast<uint8_t*>(patch.callSiteAddress);
+        if (site[0] != 0xE8) {
+            LOG_ERROR("DrawServiceSample: expected CALL rel32 at 0x{:08X} for {}",
+                      static_cast<uint32_t>(patch.callSiteAddress), patch.name);
             return false;
         }
-        auto& hook = gHooks[index];
-        if (!InstallInlineHook(hook)) {
+
+        std::memcpy(&patch.originalRel, site + 1, sizeof(patch.originalRel));
+        patch.originalTarget = patch.callSiteAddress + kHookByteCount + patch.originalRel;
+
+        int32_t newRel = 0;
+        if (!ComputeRelativeCallTarget(patch.callSiteAddress, reinterpret_cast<uintptr_t>(patch.hookFn), newRel)) {
+            LOG_ERROR("DrawServiceSample: rel32 range failure for {}", patch.name);
             return false;
         }
-        LOG_INFO("DrawServiceSample: installed hook {} entry=0x{:08X} patch=0x{:08X}",
-                 hook.name,
-                 static_cast<uint32_t>(hook.address),
-                 static_cast<uint32_t>(hook.patchAddress));
-        RefreshOriginalHookTargets();
+
+        DWORD oldProtect = 0;
+        if (!VirtualProtect(site + 1, sizeof(newRel), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            LOG_ERROR("DrawServiceSample: VirtualProtect failed for {}", patch.name);
+            return false;
+        }
+
+        std::memcpy(site + 1, &newRel, sizeof(newRel));
+        FlushInstructionCache(GetCurrentProcess(), site, kHookByteCount);
+        VirtualProtect(site + 1, sizeof(newRel), oldProtect, &oldProtect);
+
+        patch.installed = true;
         return true;
     }
 
-    void RemoveSingleDrawSequenceHook(const size_t index) {
-        if (index >= gHooks.size()) {
+    void UninstallCallSitePatch(CallSitePatch& patch) {
+        if (!patch.installed) {
             return;
         }
-        auto& hook = gHooks[index];
-        if (hook.installed) {
-            LOG_INFO("DrawServiceSample: removed hook {}", hook.name);
+
+        auto* site = reinterpret_cast<uint8_t*>(patch.callSiteAddress);
+        DWORD oldProtect = 0;
+        if (VirtualProtect(site + 1, sizeof(patch.originalRel), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            std::memcpy(site + 1, &patch.originalRel, sizeof(patch.originalRel));
+            FlushInstructionCache(GetCurrentProcess(), site, kHookByteCount);
+            VirtualProtect(site + 1, sizeof(patch.originalRel), oldProtect, &oldProtect);
         }
-        UninstallInlineHook(hook);
-        RefreshOriginalHookTargets();
+
+        patch.installed = false;
     }
 
-    bool InstallDrawSequenceHooks(const bool drawOnly) {
+    DrawPass PassFromHookIndex(const size_t index) {
+        return static_cast<DrawPass>(index);
+    }
+
+    const char* HookNameForIndex(const size_t index) {
+        switch (PassFromHookIndex(index)) {
+        case DrawPass::Draw: return "cSC43DRender::Draw";
+        case DrawPass::PreStatic: return "DrawPreStaticView_ call sites";
+        case DrawPass::Static: return "DrawStaticView_ call sites";
+        case DrawPass::PostStatic: return "DrawPostStaticView_ call sites";
+        case DrawPass::PreDynamic: return "DrawPreDynamicView_ call site";
+        case DrawPass::Dynamic: return "DrawDynamicView_ call site";
+        case DrawPass::PostDynamic: return "DrawPostDynamicView_ call site";
+        default: return "Unknown hook";
+        }
+    }
+
+    bool AreAllPassCallSitesInstalled(const DrawPass pass) {
+        bool found = false;
+        for (const auto& patch : gCallSitePatches) {
+            if (patch.pass == pass) {
+                found = true;
+                if (!patch.installed) {
+                    return false;
+                }
+            }
+        }
+        return found;
+    }
+
+    bool AreAnyPassCallSitesInstalled(const DrawPass pass) {
+        for (const auto& patch : gCallSitePatches) {
+            if (patch.pass == pass && patch.installed) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    uintptr_t ResolveOriginalPassTarget(const DrawPass pass) {
+        for (const auto& patch : gCallSitePatches) {
+            if (patch.pass == pass && patch.installed) {
+                return patch.originalTarget;
+            }
+        }
+        return 0;
+    }
+
+    void RefreshOriginalHookTargets() {
+        gOrigDraw = gDrawHook.trampoline
+                        ? reinterpret_cast<uint32_t(__thiscall*)(void*)>(gDrawHook.trampoline)
+                        : nullptr;
+        gOrigPreStatic = reinterpret_cast<void(__thiscall*)(void*)>(
+                             ResolveOriginalPassTarget(DrawPass::PreStatic));
+        gOrigStatic = reinterpret_cast<void(__thiscall*)(void*)>(
+                          ResolveOriginalPassTarget(DrawPass::Static));
+        gOrigPostStatic = reinterpret_cast<void(__thiscall*)(void*)>(
+                              ResolveOriginalPassTarget(DrawPass::PostStatic));
+        gOrigPreDynamic = reinterpret_cast<void(__thiscall*)(void*)>(
+                              ResolveOriginalPassTarget(DrawPass::PreDynamic));
+        gOrigDynamic = reinterpret_cast<void(__thiscall*)(void*)>(
+                           ResolveOriginalPassTarget(DrawPass::Dynamic));
+        gOrigPostDynamic = reinterpret_cast<void(__thiscall*)(void*)>(
+                               ResolveOriginalPassTarget(DrawPass::PostDynamic));
+    }
+
+    bool IsHookInstalled(const size_t index) {
+        if (index >= kDrawPassCount) {
+            return false;
+        }
+        if (index == static_cast<size_t>(DrawPass::Draw)) {
+            return gDrawHook.installed;
+        }
+        return AreAllPassCallSitesInstalled(PassFromHookIndex(index));
+    }
+
+    bool InstallPassCallSitePatches(const DrawPass pass) {
         bool ok = true;
-        for (size_t i = 0; i < gHooks.size(); ++i) {
-            if (drawOnly && i != 0) {
+        for (auto& patch : gCallSitePatches) {
+            if (patch.pass != pass) {
                 continue;
             }
-            if (!InstallSingleDrawSequenceHook(i)) {
+            if (!InstallCallSitePatch(patch)) {
                 ok = false;
                 break;
             }
         }
 
         if (!ok) {
-            for (auto& hook : gHooks) {
-                UninstallInlineHook(hook);
+            for (auto& patch : gCallSitePatches) {
+                if (patch.pass == pass) {
+                    UninstallCallSitePatch(patch);
+                }
             }
-            gOrigDraw = nullptr;
-            gOrigPreStatic = nullptr;
-            gOrigStatic = nullptr;
-            gOrigPostStatic = nullptr;
-            gOrigPreDynamic = nullptr;
-            gOrigDynamic = nullptr;
-            gOrigPostDynamic = nullptr;
+        }
+        return ok;
+    }
+
+    void UninstallPassCallSitePatches(const DrawPass pass) {
+        for (auto& patch : gCallSitePatches) {
+            if (patch.pass == pass) {
+                UninstallCallSitePatch(patch);
+            }
+        }
+    }
+
+    void UninstallDrawSequenceHooks();
+
+    bool InstallSingleDrawSequenceHook(const size_t index) {
+        if (index >= kDrawPassCount) {
             return false;
         }
 
+        bool ok = false;
+        if (index == static_cast<size_t>(DrawPass::Draw)) {
+            ok = InstallInlineHook(gDrawHook);
+            if (ok) {
+                LOG_INFO("DrawServiceSample: installed hook {} entry=0x{:08X} patch=0x{:08X}",
+                         gDrawHook.name,
+                         static_cast<uint32_t>(gDrawHook.address),
+                         static_cast<uint32_t>(gDrawHook.patchAddress));
+            }
+        } else {
+            const auto pass = PassFromHookIndex(index);
+            ok = InstallPassCallSitePatches(pass);
+            if (ok) {
+                LOG_INFO("DrawServiceSample: installed hook {}", HookNameForIndex(index));
+            }
+        }
+
+        if (ok) {
+            RefreshOriginalHookTargets();
+        }
+        return ok;
+    }
+
+    void RemoveSingleDrawSequenceHook(const size_t index) {
+        if (index >= kDrawPassCount) {
+            return;
+        }
+
+        if (index == static_cast<size_t>(DrawPass::Draw)) {
+            if (gDrawHook.installed) {
+                LOG_INFO("DrawServiceSample: removed hook {}", gDrawHook.name);
+            }
+            UninstallInlineHook(gDrawHook);
+        } else {
+            const auto pass = PassFromHookIndex(index);
+            if (AreAnyPassCallSitesInstalled(pass)) {
+                LOG_INFO("DrawServiceSample: removed hook {}", HookNameForIndex(index));
+            }
+            UninstallPassCallSitePatches(pass);
+        }
+
         RefreshOriginalHookTargets();
+    }
+
+    bool InstallDrawSequenceHooks(const bool drawOnly) {
+        if (!InstallSingleDrawSequenceHook(static_cast<size_t>(DrawPass::Draw))) {
+            return false;
+        }
+
+        if (drawOnly) {
+            return true;
+        }
+
+        for (size_t i = static_cast<size_t>(DrawPass::PreStatic); i < kDrawPassCount; ++i) {
+            if (!InstallSingleDrawSequenceHook(i)) {
+                UninstallDrawSequenceHooks();
+                return false;
+            }
+        }
         return true;
     }
 
     void UninstallDrawSequenceHooks() {
-        for (auto& hook : gHooks) {
-            if (hook.installed) {
-                LOG_INFO("DrawServiceSample: removed hook {}", hook.name);
+        if (gDrawHook.installed) {
+            LOG_INFO("DrawServiceSample: removed hook {}", gDrawHook.name);
+        }
+        UninstallInlineHook(gDrawHook);
+
+        for (size_t i = static_cast<size_t>(DrawPass::PreStatic); i < kDrawPassCount; ++i) {
+            const auto pass = PassFromHookIndex(i);
+            if (AreAnyPassCallSitesInstalled(pass)) {
+                LOG_INFO("DrawServiceSample: removed hook {}", HookNameForIndex(i));
             }
-            UninstallInlineHook(hook);
+            UninstallPassCallSitePatches(pass);
         }
 
         gOrigDraw = nullptr;
@@ -357,8 +908,11 @@ namespace {
     }
 
     bool AreDrawSequenceHooksInstalled() {
-        for (const auto& hook : gHooks) {
-            if (!hook.installed) {
+        if (!gDrawHook.installed) {
+            return false;
+        }
+        for (size_t i = static_cast<size_t>(DrawPass::PreStatic); i < kDrawPassCount; ++i) {
+            if (!AreAllPassCallSitesInstalled(PassFromHookIndex(i))) {
                 return false;
             }
         }
@@ -366,8 +920,11 @@ namespace {
     }
 
     bool AreAnyDrawSequenceHooksInstalled() {
-        for (const auto& hook : gHooks) {
-            if (hook.installed) {
+        if (gDrawHook.installed) {
+            return true;
+        }
+        for (const auto& patch : gCallSitePatches) {
+            if (patch.installed) {
                 return true;
             }
         }
@@ -441,7 +998,7 @@ namespace {
                 {6, "PostDynamic"},
             };
             for (const auto& entry : hookUiEntries) {
-                const bool installed = gHooks[entry.index].installed;
+                const bool installed = IsHookInstalled(entry.index);
                 char label[64]{};
                 std::snprintf(label, sizeof(label), "%s [%s]", entry.shortName, installed ? "ON" : "OFF");
                 if (ImGui::Button(label)) {
@@ -457,6 +1014,50 @@ namespace {
                 ImGui::SameLine();
             }
             ImGui::NewLine();
+            bool drawDebugBox = gEnablePostDynamicDebugBox.load(std::memory_order_relaxed);
+            if (ImGui::Checkbox("PostDynamic debug world box", &drawDebugBox)) {
+                gEnablePostDynamicDebugBox.store(drawDebugBox, std::memory_order_relaxed);
+                SetStatus(drawDebugBox ? "Enabled PostDynamic debug box"
+                                       : "Disabled PostDynamic debug box");
+            }
+            bool drawD3D7Overlay = gEnablePostDynamicD3D7Overlay.load(std::memory_order_relaxed);
+            if (ImGui::Checkbox("PostDynamic raw D3D7 overlay", &drawD3D7Overlay)) {
+                gEnablePostDynamicD3D7Overlay.store(drawD3D7Overlay, std::memory_order_relaxed);
+                SetStatus(drawD3D7Overlay ? "Enabled PostDynamic raw D3D7 overlay"
+                                          : "Disabled PostDynamic raw D3D7 overlay");
+            }
+            bool drawStaticDepthOverlay = gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed);
+            if (ImGui::Checkbox("Static world depth overlay (D3D7)", &drawStaticDepthOverlay)) {
+                gEnableStaticD3D7DepthOverlay.store(drawStaticDepthOverlay, std::memory_order_relaxed);
+                SetStatus(drawStaticDepthOverlay ? "Enabled Static world depth overlay"
+                                                 : "Disabled Static world depth overlay");
+            }
+            int staticZBias = gStaticD3D7ZBias.load(std::memory_order_relaxed);
+            if (ImGui::SliderInt("Static overlay ZBias", &staticZBias, -16, 16)) {
+                gStaticD3D7ZBias.store(staticZBias, std::memory_order_relaxed);
+            }
+            float staticOverlayX = gStaticOverlayWorldX.load(std::memory_order_relaxed);
+            if (ImGui::SliderFloat("Static overlay world X", &staticOverlayX, 0.0f, 2048.0f, "%.1f")) {
+                gStaticOverlayWorldX.store(staticOverlayX, std::memory_order_relaxed);
+            }
+            float staticOverlayY = gStaticOverlayWorldY.load(std::memory_order_relaxed);
+            if (ImGui::SliderFloat("Static overlay world Y", &staticOverlayY, 0.0f, 512.0f, "%.1f")) {
+                gStaticOverlayWorldY.store(staticOverlayY, std::memory_order_relaxed);
+            }
+            float staticOverlayZ = gStaticOverlayWorldZ.load(std::memory_order_relaxed);
+            if (ImGui::SliderFloat("Static overlay world Z", &staticOverlayZ, 0.0f, 2048.0f, "%.1f")) {
+                gStaticOverlayWorldZ.store(staticOverlayZ, std::memory_order_relaxed);
+            }
+            bool drawDepthLayered = gEnablePreDynamicDepthLayeredOverlay.load(std::memory_order_relaxed);
+            if (ImGui::Checkbox("PreDynamic depth-layered overlay", &drawDepthLayered)) {
+                gEnablePreDynamicDepthLayeredOverlay.store(drawDepthLayered, std::memory_order_relaxed);
+                SetStatus(drawDepthLayered ? "Enabled PreDynamic depth-layered overlay"
+                                           : "Disabled PreDynamic depth-layered overlay");
+            }
+            int depthOffset = gPreDynamicDepthOffset.load(std::memory_order_relaxed);
+            if (ImGui::SliderInt("PreDynamic depth offset", &depthOffset, -64, 64)) {
+                gPreDynamicDepthOffset.store(depthOffset, std::memory_order_relaxed);
+            }
             ImGui::Checkbox("Overlay begin/end lines", &showHookOverlay_);
             ImGui::SameLine();
             ImGui::SliderInt("History", &overlayHistory_, 8, 128);
@@ -821,17 +1422,19 @@ public:
         }
 
         panelRegistered_ = true;
+        gImGuiServiceForD3DOverlay.store(imguiService_, std::memory_order_release);
         LOG_INFO("DrawServiceSample: panel registered");
         return true;
     }
 
     bool PostAppShutdown() override {
+        UninstallDrawSequenceHooks();
+        gImGuiServiceForD3DOverlay.store(nullptr, std::memory_order_release);
         if (imguiService_) {
             imguiService_->UnregisterPanel(kDrawSamplePanelId);
             imguiService_->Release();
             imguiService_ = nullptr;
         }
-        UninstallDrawSequenceHooks();
         if (drawService_) {
             drawService_->Release();
             drawService_ = nullptr;
