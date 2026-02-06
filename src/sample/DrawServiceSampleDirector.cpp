@@ -34,6 +34,13 @@ namespace {
         Count
     };
 
+    enum class WorldDepthOverlayPass : int {
+        Static = 0,
+        PreDynamic = 1,
+        Dynamic = 2,
+        PostDynamic = 3
+    };
+
     constexpr size_t kDrawPassCount = static_cast<size_t>(DrawPass::Count);
     constexpr size_t kHookByteCount = 5;
     constexpr size_t kCallSitePatchCount = 9;
@@ -83,6 +90,7 @@ namespace {
     std::atomic<bool> gEnablePostDynamicDebugBox{false};
     std::atomic<bool> gEnablePostDynamicD3D7Overlay{false};
     std::atomic<bool> gEnableStaticD3D7DepthOverlay{false};
+    std::atomic<int> gStaticD3D7DepthOverlayPass{static_cast<int>(WorldDepthOverlayPass::Dynamic)};
     std::atomic<int> gStaticD3D7ZBias{1};
     std::atomic<float> gStaticOverlayWorldX{1024.0f};
     std::atomic<float> gStaticOverlayWorldY{270.0f};
@@ -304,6 +312,23 @@ namespace {
         device->Release();
     }
 
+    bool ShouldDrawWorldDepthOverlayInPass(const DrawPass pass) {
+        const auto configuredPass = static_cast<WorldDepthOverlayPass>(
+            gStaticD3D7DepthOverlayPass.load(std::memory_order_relaxed));
+        switch (configuredPass) {
+        case WorldDepthOverlayPass::Static:
+            return pass == DrawPass::Static;
+        case WorldDepthOverlayPass::PreDynamic:
+            return pass == DrawPass::PreDynamic;
+        case WorldDepthOverlayPass::Dynamic:
+            return pass == DrawPass::Dynamic;
+        case WorldDepthOverlayPass::PostDynamic:
+            return pass == DrawPass::PostDynamic;
+        default:
+            return pass == DrawPass::Dynamic;
+        }
+    }
+
     void DrawD3D7OverlayLines() {
         auto* imguiService = gImGuiServiceForD3DOverlay.load(std::memory_order_acquire);
         if (!imguiService) {
@@ -470,7 +495,8 @@ namespace {
         if (gOrigStatic) {
             gOrigStatic(self);
         }
-        if (gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed)) {
+        if (gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed) &&
+            ShouldDrawWorldDepthOverlayInPass(DrawPass::Static)) {
             DrawStaticD3D7DepthOverlay();
         }
         RecordHookEvent(DrawPass::Static, false);
@@ -492,6 +518,10 @@ namespace {
         if (gOrigPreDynamic) {
             gOrigPreDynamic(self);
         }
+        if (gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed) &&
+            ShouldDrawWorldDepthOverlayInPass(DrawPass::PreDynamic)) {
+            DrawStaticD3D7DepthOverlay();
+        }
         RecordHookEvent(DrawPass::PreDynamic, false);
     }
 
@@ -500,6 +530,10 @@ namespace {
         if (gOrigDynamic) {
             gOrigDynamic(self);
         }
+        if (gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed) &&
+            ShouldDrawWorldDepthOverlayInPass(DrawPass::Dynamic)) {
+            DrawStaticD3D7DepthOverlay();
+        }
         RecordHookEvent(DrawPass::Dynamic, false);
     }
 
@@ -507,6 +541,10 @@ namespace {
         RecordHookEvent(DrawPass::PostDynamic, true);
         if (gOrigPostDynamic) {
             gOrigPostDynamic(self);
+        }
+        if (gEnableStaticD3D7DepthOverlay.load(std::memory_order_relaxed) &&
+            ShouldDrawWorldDepthOverlayInPass(DrawPass::PostDynamic)) {
+            DrawStaticD3D7DepthOverlay();
         }
         if (gEnablePostDynamicDebugBox.load(std::memory_order_relaxed) &&
             gGetDrawContext && gDrawBoundingBox) {
@@ -1035,6 +1073,13 @@ namespace {
             int staticZBias = gStaticD3D7ZBias.load(std::memory_order_relaxed);
             if (ImGui::SliderInt("Static overlay ZBias", &staticZBias, -16, 16)) {
                 gStaticD3D7ZBias.store(staticZBias, std::memory_order_relaxed);
+            }
+            static const char* worldDepthOverlayPassItems[] = {"Static", "PreDynamic", "Dynamic", "PostDynamic"};
+            int worldDepthOverlayPass = gStaticD3D7DepthOverlayPass.load(std::memory_order_relaxed);
+            if (ImGui::Combo("World depth overlay pass", &worldDepthOverlayPass,
+                             worldDepthOverlayPassItems,
+                             static_cast<int>(std::size(worldDepthOverlayPassItems)))) {
+                gStaticD3D7DepthOverlayPass.store(worldDepthOverlayPass, std::memory_order_relaxed);
             }
             float staticOverlayX = gStaticOverlayWorldX.load(std::memory_order_relaxed);
             if (ImGui::SliderFloat("Static overlay world X", &staticOverlayX, 0.0f, 2048.0f, "%.1f")) {
