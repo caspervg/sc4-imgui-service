@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <vector>
 
 struct RoadDecalPoint
@@ -17,6 +18,7 @@ struct RoadDecalStroke
 };
 
 extern std::vector<RoadDecalStroke> gRoadDecalStrokes;
+extern std::atomic<int> gRoadDecalZBias;
 
 void RebuildRoadDecalGeometry();
 void DrawRoadDecals();

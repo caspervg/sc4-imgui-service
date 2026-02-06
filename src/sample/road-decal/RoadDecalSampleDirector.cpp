@@ -5,6 +5,7 @@
 #include "public/ImGuiPanelAdapter.h"
 #include "public/ImGuiServiceIds.h"
 #include "public/cIGZImGuiService.h"
+#include "cISC43DRender.h"
 #include "sample/road-decal/RoadDecalData.hpp"
 #include "sample/road-decal/RoadDecalInputControl.hpp"
 #include "utils/Logger.h"
@@ -20,7 +21,7 @@ namespace
 {
     constexpr uint32_t kRoadDecalDirectorID = 0xE59A5D21;
     constexpr uint32_t kRoadDecalPanelId = 0x9B4A7A11;
-    constexpr uintptr_t kDynamicCallSiteAddress = 0x007CB853;
+    constexpr uintptr_t kPreDynamicCallSiteAddress = 0x007CB84C;
     constexpr size_t kHookByteCount = 5;
 
     struct CallSitePatch
@@ -33,10 +34,10 @@ namespace
         bool installed = false;
     };
 
-    void(__thiscall* gOrigDynamic)(void*) = nullptr;
-    CallSitePatch gDynamicPatch{
-        "Draw::DrawDynamicView_",
-        kDynamicCallSiteAddress,
+    void(__thiscall* gOrigPreDynamic)(void*) = nullptr;
+    CallSitePatch gPreDynamicPatch{
+        "Draw::DrawPreDynamicView_",
+        kPreDynamicCallSiteAddress,
         0,
         0,
         nullptr,
@@ -115,30 +116,30 @@ namespace
         patch.originalRel = 0;
     }
 
-    bool InstallDynamicHook()
+    bool InstallPreDynamicHook()
     {
-        if (gDynamicPatch.installed) {
+        if (gPreDynamicPatch.installed) {
             return true;
         }
 
-        if (!InstallCallSitePatch(gDynamicPatch)) {
-            gOrigDynamic = nullptr;
+        if (!InstallCallSitePatch(gPreDynamicPatch)) {
+            gOrigPreDynamic = nullptr;
             return false;
         }
 
-        gOrigDynamic = reinterpret_cast<void(__thiscall*)(void*)>(gDynamicPatch.originalTarget);
-        LOG_INFO("RoadDecalSample: installed dynamic pass hook");
+        gOrigPreDynamic = reinterpret_cast<void(__thiscall*)(void*)>(gPreDynamicPatch.originalTarget);
+        LOG_INFO("RoadDecalSample: installed pre-dynamic pass hook");
         return true;
     }
 
-    void UninstallDynamicHook()
+    void UninstallPreDynamicHook()
     {
-        if (gDynamicPatch.installed) {
-            LOG_INFO("RoadDecalSample: removed dynamic pass hook");
+        if (gPreDynamicPatch.installed) {
+            LOG_INFO("RoadDecalSample: removed pre-dynamic pass hook");
         }
 
-        UninstallCallSitePatch(gDynamicPatch);
-        gOrigDynamic = nullptr;
+        UninstallCallSitePatch(gPreDynamicPatch);
+        gOrigPreDynamic = nullptr;
     }
 
     bool EnableRoadDecalTool()
@@ -198,12 +199,27 @@ namespace
         }
     }
 
-    void __fastcall HookDynamic(void* self, void*)
+    void __fastcall HookPreDynamic(void* self, void*)
     {
-        if (gOrigDynamic) {
-            gOrigDynamic(self);
+        if (gOrigPreDynamic) {
+            gOrigPreDynamic(self);
         }
         DrawRoadDecals();
+    }
+
+    bool ForceFullRedrawNow()
+    {
+        auto view3D = SC4UI::GetView3DWin();
+        if (!view3D) {
+            return false;
+        }
+
+        cISC43DRender* renderer = view3D->GetRenderer();
+        if (!renderer) {
+            return false;
+        }
+
+        return renderer->ForceFullRedraw();
     }
 
     class RoadDecalPanel final : public ImGuiPanel
@@ -212,7 +228,7 @@ namespace
         void OnRender() override
         {
             ImGui::Begin("Road Decal Sample");
-            ImGui::TextUnformatted("Dynamic pass road decal overlay");
+            ImGui::TextUnformatted("Pre-dynamic pass road decal overlay");
 
             bool toolEnabled = gRoadDecalToolEnabled.load(std::memory_order_relaxed);
             if (ImGui::Checkbox("Enable Road Decal Tool", &toolEnabled)) {
@@ -240,9 +256,17 @@ namespace
                     gRoadDecalTool->SetWidth(width);
                 }
             }
+            int zBias = gRoadDecalZBias.load(std::memory_order_relaxed);
+            if (ImGui::SliderInt("ZBias", &zBias, 1, 8)) {
+                gRoadDecalZBias.store(zBias, std::memory_order_relaxed);
+            }
 
             if (ImGui::Button("Rebuild Geometry")) {
                 RebuildRoadDecalGeometry();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Force Full Redraw")) {
+                ForceFullRedrawNow();
             }
             ImGui::SameLine();
             if (ImGui::Button("Undo Last")) {
@@ -316,16 +340,16 @@ public:
         panelRegistered_ = true;
         gImGuiServiceForD3DOverlay.store(imguiService_, std::memory_order_release);
 
-        gDynamicPatch.hookFn = reinterpret_cast<void*>(&HookDynamic);
-        if (!InstallDynamicHook()) {
-            LOG_WARN("RoadDecalSample: dynamic hook install failed");
+        gPreDynamicPatch.hookFn = reinterpret_cast<void*>(&HookPreDynamic);
+        if (!InstallPreDynamicHook()) {
+            LOG_WARN("RoadDecalSample: pre-dynamic hook install failed");
         }
         return true;
     }
 
     bool PostAppShutdown() override
     {
-        UninstallDynamicHook();
+        UninstallPreDynamicHook();
         DestroyRoadDecalTool();
         gImGuiServiceForD3DOverlay.store(nullptr, std::memory_order_release);
 

@@ -12,6 +12,7 @@
 #include "utils/Logger.h"
 
 std::atomic<cIGZImGuiService*> gImGuiServiceForD3DOverlay{nullptr};
+std::atomic<int> gRoadDecalZBias{1};
 
 namespace
 {
@@ -40,9 +41,16 @@ namespace
             okZWrite = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ZWRITEENABLE, &zWrite));
             okLighting = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_LIGHTING, &lighting));
             okAlphaBlend = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, &alphaBlend));
+            okAlphaTest = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, &alphaTest));
+            okAlphaFunc = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ALPHAFUNC, &alphaFunc));
+            okAlphaRef = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ALPHAREF, &alphaRef));
+            okStencilEnable = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_STENCILENABLE, &stencilEnable));
             okSrcBlend = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_SRCBLEND, &srcBlend));
             okDstBlend = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_DESTBLEND, &dstBlend));
             okCullMode = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_CULLMODE, &cullMode));
+            okFogEnable = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_FOGENABLE, &fogEnable));
+            okRangeFogEnable = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_RANGEFOGENABLE, &rangeFogEnable));
+            okZFunc = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ZFUNC, &zFunc));
             okZBias = SUCCEEDED(device->GetRenderState(D3DRENDERSTATE_ZBIAS, &zBias));
         }
 
@@ -64,6 +72,18 @@ namespace
             if (okAlphaBlend) {
                 device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, alphaBlend);
             }
+            if (okAlphaTest) {
+                device->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, alphaTest);
+            }
+            if (okAlphaFunc) {
+                device->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, alphaFunc);
+            }
+            if (okAlphaRef) {
+                device->SetRenderState(D3DRENDERSTATE_ALPHAREF, alphaRef);
+            }
+            if (okStencilEnable) {
+                device->SetRenderState(D3DRENDERSTATE_STENCILENABLE, stencilEnable);
+            }
             if (okSrcBlend) {
                 device->SetRenderState(D3DRENDERSTATE_SRCBLEND, srcBlend);
             }
@@ -72,6 +92,15 @@ namespace
             }
             if (okCullMode) {
                 device->SetRenderState(D3DRENDERSTATE_CULLMODE, cullMode);
+            }
+            if (okFogEnable) {
+                device->SetRenderState(D3DRENDERSTATE_FOGENABLE, fogEnable);
+            }
+            if (okRangeFogEnable) {
+                device->SetRenderState(D3DRENDERSTATE_RANGEFOGENABLE, rangeFogEnable);
+            }
+            if (okZFunc) {
+                device->SetRenderState(D3DRENDERSTATE_ZFUNC, zFunc);
             }
             if (okZBias) {
                 device->SetRenderState(D3DRENDERSTATE_ZBIAS, zBias);
@@ -84,18 +113,32 @@ namespace
         bool okZWrite = false;
         bool okLighting = false;
         bool okAlphaBlend = false;
+        bool okAlphaTest = false;
+        bool okAlphaFunc = false;
+        bool okAlphaRef = false;
+        bool okStencilEnable = false;
         bool okSrcBlend = false;
         bool okDstBlend = false;
         bool okCullMode = false;
+        bool okFogEnable = false;
+        bool okRangeFogEnable = false;
+        bool okZFunc = false;
         bool okZBias = false;
 
         DWORD zEnable = 0;
         DWORD zWrite = 0;
         DWORD lighting = 0;
         DWORD alphaBlend = 0;
+        DWORD alphaTest = 0;
+        DWORD alphaFunc = 0;
+        DWORD alphaRef = 0;
+        DWORD stencilEnable = 0;
         DWORD srcBlend = 0;
         DWORD dstBlend = 0;
         DWORD cullMode = 0;
+        DWORD fogEnable = 0;
+        DWORD rangeFogEnable = 0;
+        DWORD zFunc = 0;
         DWORD zBias = 0;
     };
 
@@ -225,15 +268,22 @@ void DrawRoadDecals()
         RoadDecalStateGuard state(device);
 
         device->SetRenderState(D3DRENDERSTATE_ZENABLE, TRUE);
+        device->SetRenderState(D3DRENDERSTATE_ZFUNC, D3DCMP_LESSEQUAL);
         device->SetRenderState(D3DRENDERSTATE_ZWRITEENABLE, FALSE);
         device->SetRenderState(D3DRENDERSTATE_LIGHTING, FALSE);
+        device->SetRenderState(D3DRENDERSTATE_FOGENABLE, FALSE);
+        device->SetRenderState(D3DRENDERSTATE_RANGEFOGENABLE, FALSE);
         device->SetRenderState(D3DRENDERSTATE_CULLMODE, D3DCULL_NONE);
 
         device->SetRenderState(D3DRENDERSTATE_ALPHABLENDENABLE, TRUE);
+        device->SetRenderState(D3DRENDERSTATE_ALPHATESTENABLE, FALSE);
+        device->SetRenderState(D3DRENDERSTATE_ALPHAFUNC, D3DCMP_ALWAYS);
+        device->SetRenderState(D3DRENDERSTATE_ALPHAREF, 0);
+        device->SetRenderState(D3DRENDERSTATE_STENCILENABLE, FALSE);
         device->SetRenderState(D3DRENDERSTATE_SRCBLEND, D3DBLEND_SRCALPHA);
         device->SetRenderState(D3DRENDERSTATE_DESTBLEND, D3DBLEND_INVSRCALPHA);
 
-        device->SetRenderState(D3DRENDERSTATE_ZBIAS, 1);
+        device->SetRenderState(D3DRENDERSTATE_ZBIAS, gRoadDecalZBias.load(std::memory_order_relaxed));
 
         device->SetTexture(0, nullptr);
         device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);

@@ -1,5 +1,6 @@
 #include "RoadDecalInputControl.hpp"
 
+#include "cISC43DRender.h"
 #include "utils/Logger.h"
 
 #include <windows.h>
@@ -39,6 +40,7 @@ bool RoadDecalInputControl::Shutdown()
 {
     LOG_INFO("RoadDecalInputControl shutting down");
     CancelStroke_();
+    RequestFullRedraw_();
     return cSC4BaseViewInputControl::Shutdown();
 }
 
@@ -102,6 +104,7 @@ bool RoadDecalInputControl::OnMouseDownR(int32_t, int32_t, uint32_t)
     } else {
         ClearAllStrokes_();
         RebuildRoadDecalGeometry();
+        RequestFullRedraw_();
     }
 
     return true;
@@ -110,6 +113,7 @@ bool RoadDecalInputControl::OnMouseDownR(int32_t, int32_t, uint32_t)
 bool RoadDecalInputControl::OnMouseExit()
 {
     ClearPreview_();
+    RequestFullRedraw_();
     return false;
 }
 
@@ -131,6 +135,7 @@ bool RoadDecalInputControl::OnKeyDown(int32_t vkCode, uint32_t modifiers)
     if (vkCode == 'Z' && (modifiers & kControlModifierMask) != 0) {
         UndoLastStroke_();
         RebuildRoadDecalGeometry();
+        RequestFullRedraw_();
         return true;
     }
 
@@ -138,6 +143,7 @@ bool RoadDecalInputControl::OnKeyDown(int32_t vkCode, uint32_t modifiers)
         CancelStroke_();
         ClearAllStrokes_();
         RebuildRoadDecalGeometry();
+        RequestFullRedraw_();
         return true;
     }
 
@@ -204,6 +210,7 @@ bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ)
     isDrawing_ = true;
     RefreshActiveStroke_();
     ClearPreview_();
+    RequestFullRedraw_();
     return true;
 }
 
@@ -224,10 +231,13 @@ bool RoadDecalInputControl::AddSamplePoint_(int32_t screenX, int32_t screenZ)
         return false;
     }
 
+    p.y += 0.05;
+
     currentStroke_.points.push_back(p);
     lastSamplePoint_ = p;
     RefreshActiveStroke_();
     ClearPreview_();
+    RequestFullRedraw_();
     return true;
 }
 
@@ -243,6 +253,7 @@ bool RoadDecalInputControl::EndStroke_(bool commit)
     SetRoadDecalActiveStroke(nullptr);
     ClearPreview_();
     ReleaseCapture();
+    RequestFullRedraw_();
     return true;
 }
 
@@ -256,6 +267,7 @@ void RoadDecalInputControl::CancelStroke_()
     SetRoadDecalActiveStroke(nullptr);
     ClearPreview_();
     ReleaseCapture();
+    RequestFullRedraw_();
 }
 
 void RoadDecalInputControl::UpdatePreviewFromScreen_(int32_t screenX, int32_t screenZ)
@@ -263,10 +275,12 @@ void RoadDecalInputControl::UpdatePreviewFromScreen_(int32_t screenX, int32_t sc
     RoadDecalPoint p{};
     if (!PickWorld_(screenX, screenZ, p)) {
         ClearPreview_();
+        RequestFullRedraw_();
         return;
     }
 
     SetRoadDecalPreviewSegment(true, lastSamplePoint_, p, currentStroke_.styleId, currentStroke_.width);
+    RequestFullRedraw_();
 }
 
 void RoadDecalInputControl::ClearPreview_()
@@ -278,6 +292,22 @@ void RoadDecalInputControl::ClearPreview_()
 void RoadDecalInputControl::RefreshActiveStroke_()
 {
     SetRoadDecalActiveStroke(&currentStroke_);
+}
+
+void RoadDecalInputControl::RequestFullRedraw_()
+{
+    return;
+    //
+    // if (!view3D) {
+    //     return;
+    // }
+    //
+    // cISC43DRender* renderer = view3D->GetRenderer();
+    // if (!renderer) {
+    //     return;
+    // }
+    //
+    // renderer->ForceFullRedraw();
 }
 
 void RoadDecalInputControl::UndoLastStroke_()

@@ -40,6 +40,7 @@ private:
     void UpdatePreviewFromScreen_(int32_t screenX, int32_t screenZ);
     void ClearPreview_();
     void RefreshActiveStroke_();
+    void RequestFullRedraw_();
     void UndoLastStroke_();
     void ClearAllStrokes_();
 
