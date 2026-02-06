@@ -55,6 +55,17 @@ if(MSVC)
 endif()
 
 add_subdirectory(vendor/spdlog)
+add_subdirectory(vendor/gzcom-dll)
+
+# Keep CRT runtime consistent across all targets even if a subproject sets /MT(/d).
+if(MSVC)
+    target_compile_options(gzcom_dll PRIVATE
+            "$<$<CONFIG:Debug>:/MDd>"
+            "$<$<CONFIG:Release>:/MD>"
+            "$<$<CONFIG:RelWithDebInfo>:/MD>"
+            "$<$<CONFIG:MinSizeRel>:/MD>"
+    )
+endif()
 
 # ImGui library (vendor/imguid3d7 has no CMakeLists)
 set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/vendor/d3d7imgui/ImGui)
@@ -84,34 +95,8 @@ if(WIN32)
     target_link_libraries(imgui PRIVATE user32 gdi32 ddraw dxguid)
 endif()
 
-# GZCOM-DLL (vendor/gzcom-dll has sources, build local static lib)
-set(GZCOM_DIR ${CMAKE_SOURCE_DIR}/vendor/gzcom-dll/gzcom-dll)
-
-# Collect all public headers and sources
-file(GLOB_RECURSE GZCOM_HEADERS
-        ${GZCOM_DIR}/include/*.h
-        ${GZCOM_DIR}/include/*.hpp
-)
-file(GLOB_RECURSE GZCOM_SOURCES
-        ${GZCOM_DIR}/src/*.cpp
-)
-
-# Exclude vendor app entry and example directors from gzcom sources
-list(REMOVE_ITEM GZCOM_SOURCES
-        ${GZCOM_DIR}/src/main.cpp
-        ${GZCOM_DIR}/src/cGZExampleDllDirector.cpp
-        ${GZCOM_DIR}/src/cGZExtraCheatsDllDirector.cpp
-        ${GZCOM_DIR}/src/cGZExtraExtraCheatsDllDirector.cpp
-        ${GZCOM_DIR}/src/cGZCityHallUpgradeDllDirector.cpp
-)
-
-# Build gzcom2 as a static library to match existing linkage
-add_library(gzcom2 STATIC ${GZCOM_SOURCES} ${GZCOM_HEADERS})
-
-# Expose include path to dependents
-target_include_directories(gzcom2 PUBLIC
-        ${GZCOM_DIR}/include
-)
+# Preserve existing link name in this project while using the vendor CMake target.
+add_library(gzcom2 ALIAS gzcom_dll)
 
 # Include directories
 include_directories(
