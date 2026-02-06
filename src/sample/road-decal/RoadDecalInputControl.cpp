@@ -3,11 +3,28 @@
 #include "cISC43DRender.h"
 #include "utils/Logger.h"
 
+#include <cmath>
 #include <windows.h>
 
 namespace
 {
     constexpr uint32_t kControlModifierMask = 0x20000;
+    constexpr uint32_t kShiftModifierMask = 0x10000;
+    constexpr float kSnapSubgridMeters = 2.0f;
+    constexpr float kDecalHeightOffset = 0.05f;
+
+    float SnapToSubgrid(const float value)
+    {
+        return std::round(value / kSnapSubgridMeters) * kSnapSubgridMeters;
+    }
+
+    bool IsHardCornerModifierActive(const uint32_t modifiers)
+    {
+        if ((modifiers & kShiftModifierMask) != 0) {
+            return true;
+        }
+        return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    }
 }
 
 RoadDecalInputControl::RoadDecalInputControl()
@@ -17,7 +34,8 @@ RoadDecalInputControl::RoadDecalInputControl()
     , currentStroke_({})
     , lastSamplePoint_({})
     , styleId_(0)
-    , width_(0.5f)
+    , width_(1.0f)
+    , dashed_(false)
     , onCancel_()
 {
 }
@@ -63,17 +81,17 @@ void RoadDecalInputControl::Deactivate()
     cSC4BaseViewInputControl::Deactivate();
 }
 
-bool RoadDecalInputControl::OnMouseDownL(int32_t x, int32_t z, uint32_t)
+bool RoadDecalInputControl::OnMouseDownL(int32_t x, int32_t z, uint32_t modifiers)
 {
     if (!isActive_ || !IsOnTop()) {
         return false;
     }
 
     if (!isDrawing_) {
-        return BeginStroke_(x, z);
+        return BeginStroke_(x, z, modifiers);
     }
 
-    return AddSamplePoint_(x, z);
+    return AddSamplePoint_(x, z, modifiers);
 }
 
 bool RoadDecalInputControl::OnMouseMove(int32_t x, int32_t z, uint32_t)
@@ -167,6 +185,11 @@ void RoadDecalInputControl::SetWidth(float width)
     width_ = width;
 }
 
+void RoadDecalInputControl::SetDashed(const bool dashed)
+{
+    dashed_ = dashed;
+}
+
 void RoadDecalInputControl::SetOnCancel(std::function<void()> onCancel)
 {
     onCancel_ = std::move(onCancel);
@@ -185,17 +208,22 @@ bool RoadDecalInputControl::PickWorld_(int32_t screenX, int32_t screenZ, RoadDec
     }
 
     outPoint.x = worldCoords[0];
-    outPoint.y = worldCoords[1];
+    outPoint.y = worldCoords[1] + kDecalHeightOffset;
     outPoint.z = worldCoords[2];
+
+    // Keep points on a 2m subgrid for cleaner, more road-like alignment.
+    outPoint.x = SnapToSubgrid(outPoint.x);
+    outPoint.z = SnapToSubgrid(outPoint.z);
     return true;
 }
 
-bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ)
+bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ, uint32_t modifiers)
 {
     RoadDecalPoint p{};
     if (!PickWorld_(screenX, screenZ, p)) {
         return false;
     }
+    p.hardCorner = IsHardCornerModifierActive(modifiers);
 
     if (!SetCapture()) {
         LOG_WARN("RoadDecalInputControl: failed to SetCapture");
@@ -205,6 +233,7 @@ bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ)
     currentStroke_.points.clear();
     currentStroke_.styleId = styleId_;
     currentStroke_.width = width_;
+    currentStroke_.dashed = dashed_;
     currentStroke_.points.push_back(p);
     lastSamplePoint_ = p;
     isDrawing_ = true;
@@ -214,12 +243,13 @@ bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ)
     return true;
 }
 
-bool RoadDecalInputControl::AddSamplePoint_(int32_t screenX, int32_t screenZ)
+bool RoadDecalInputControl::AddSamplePoint_(int32_t screenX, int32_t screenZ, uint32_t modifiers)
 {
     RoadDecalPoint p{};
     if (!PickWorld_(screenX, screenZ, p)) {
         return false;
     }
+    p.hardCorner = IsHardCornerModifierActive(modifiers);
 
     const float dx = p.x - lastSamplePoint_.x;
     const float dy = p.y - lastSamplePoint_.y;
@@ -230,8 +260,6 @@ bool RoadDecalInputControl::AddSamplePoint_(int32_t screenX, int32_t screenZ)
     if (dist2 < kMinSampleDist * kMinSampleDist) {
         return false;
     }
-
-    p.y += 0.05;
 
     currentStroke_.points.push_back(p);
     lastSamplePoint_ = p;
@@ -279,14 +307,14 @@ void RoadDecalInputControl::UpdatePreviewFromScreen_(int32_t screenX, int32_t sc
         return;
     }
 
-    SetRoadDecalPreviewSegment(true, lastSamplePoint_, p, currentStroke_.styleId, currentStroke_.width);
+    SetRoadDecalPreviewSegment(true, lastSamplePoint_, p, currentStroke_.styleId, currentStroke_.width, currentStroke_.dashed);
     RequestFullRedraw_();
 }
 
 void RoadDecalInputControl::ClearPreview_()
 {
     const RoadDecalPoint zero{0.0f, 0.0f, 0.0f};
-    SetRoadDecalPreviewSegment(false, zero, zero, 0, 0.0f);
+    SetRoadDecalPreviewSegment(false, zero, zero, 0, 0.0f, false);
 }
 
 void RoadDecalInputControl::RefreshActiveStroke_()

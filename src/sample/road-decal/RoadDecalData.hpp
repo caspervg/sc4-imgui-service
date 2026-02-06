@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <vector>
 
 struct RoadDecalPoint
@@ -8,6 +7,7 @@ struct RoadDecalPoint
     float x;
     float y;
     float z;
+    bool hardCorner = false;
 };
 
 struct RoadDecalStroke
@@ -15,10 +15,10 @@ struct RoadDecalStroke
     std::vector<RoadDecalPoint> points;
     int styleId; // 0 = white, 1 = yellow, 2 = red
     float width; // world units
+    bool dashed = false;
 };
 
 extern std::vector<RoadDecalStroke> gRoadDecalStrokes;
-extern std::atomic<int> gRoadDecalZBias;
 
 void RebuildRoadDecalGeometry();
 void DrawRoadDecals();
@@ -31,4 +31,5 @@ void SetRoadDecalPreviewSegment(bool enabled,
                                 const RoadDecalPoint& from,
                                 const RoadDecalPoint& to,
                                 int styleId,
-                                float width);
+                                float width,
+                                bool dashed);

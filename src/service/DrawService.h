@@ -101,7 +101,7 @@ public:
 
 private:
     static constexpr size_t kHookByteCount = 5;
-    static constexpr size_t kCallSitePatchCount = 9;
+    static constexpr size_t kCallSitePatchCount = 15;
 
     struct DrawPassCallbackRegistration {
         uint32_t token = 0;

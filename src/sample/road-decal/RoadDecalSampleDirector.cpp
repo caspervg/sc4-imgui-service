@@ -6,7 +6,6 @@
 #include "public/ImGuiServiceIds.h"
 #include "public/cIGZDrawService.h"
 #include "public/cIGZImGuiService.h"
-#include "cISC43DRender.h"
 #include "sample/road-decal/RoadDecalData.hpp"
 #include "sample/road-decal/RoadDecalInputControl.hpp"
 #include "utils/Logger.h"
@@ -20,11 +19,12 @@ namespace
 {
     constexpr uint32_t kRoadDecalDirectorID = 0xE59A5D21;
     constexpr uint32_t kRoadDecalPanelId = 0x9B4A7A11;
+    constexpr float kRoadDecalWidth = 0.8f;
 
     RoadDecalInputControl* gRoadDecalTool = nullptr;
     std::atomic<bool> gRoadDecalToolEnabled{false};
     std::atomic<int> gRoadDecalStyle{0};
-    std::atomic<float> gRoadDecalWidth{0.5f};
+    std::atomic<bool> gRoadDecalDashed{false};
 
     bool EnableRoadDecalTool()
     {
@@ -42,7 +42,8 @@ namespace
             gRoadDecalTool = new RoadDecalInputControl();
             gRoadDecalTool->AddRef();
             gRoadDecalTool->SetStyle(gRoadDecalStyle.load(std::memory_order_relaxed));
-            gRoadDecalTool->SetWidth(gRoadDecalWidth.load(std::memory_order_relaxed));
+            gRoadDecalTool->SetWidth(kRoadDecalWidth);
+            gRoadDecalTool->SetDashed(gRoadDecalDashed.load(std::memory_order_relaxed));
             gRoadDecalTool->SetOnCancel([]() {});
             gRoadDecalTool->Activate();
         }
@@ -91,31 +92,15 @@ namespace
         DrawRoadDecals();
     }
 
-    bool ForceFullRedrawNow()
-    {
-        auto view3D = SC4UI::GetView3DWin();
-        if (!view3D) {
-            return false;
-        }
-
-        cISC43DRender* renderer = view3D->GetRenderer();
-        if (!renderer) {
-            return false;
-        }
-
-        return renderer->ForceFullRedraw();
-    }
-
     class RoadDecalPanel final : public ImGuiPanel
     {
     public:
         void OnRender() override
         {
-            ImGui::Begin("Road Decal Sample");
-            ImGui::TextUnformatted("Pre-dynamic pass road decal overlay");
+            ImGui::Begin("Road Decals");
 
             bool toolEnabled = gRoadDecalToolEnabled.load(std::memory_order_relaxed);
-            if (ImGui::Checkbox("Enable Road Decal Tool", &toolEnabled)) {
+            if (ImGui::Checkbox("Enable", &toolEnabled)) {
                 if (toolEnabled) {
                     toolEnabled = EnableRoadDecalTool();
                 } else {
@@ -126,50 +111,37 @@ namespace
 
             static const char* styleItems[] = {"White", "Yellow", "Red"};
             int style = gRoadDecalStyle.load(std::memory_order_relaxed);
-            if (ImGui::Combo("Style", &style, styleItems, static_cast<int>(std::size(styleItems)))) {
+            if (ImGui::Combo("Color", &style, styleItems, static_cast<int>(std::size(styleItems)))) {
                 gRoadDecalStyle.store(style, std::memory_order_relaxed);
                 if (gRoadDecalTool) {
                     gRoadDecalTool->SetStyle(style);
                 }
             }
 
-            float width = gRoadDecalWidth.load(std::memory_order_relaxed);
-            if (ImGui::SliderFloat("Width", &width, 0.05f, 8.0f, "%.2f")) {
-                gRoadDecalWidth.store(width, std::memory_order_relaxed);
+            bool dashed = gRoadDecalDashed.load(std::memory_order_relaxed);
+            if (ImGui::Checkbox("Dashed", &dashed)) {
+                gRoadDecalDashed.store(dashed, std::memory_order_relaxed);
                 if (gRoadDecalTool) {
-                    gRoadDecalTool->SetWidth(width);
+                    gRoadDecalTool->SetDashed(dashed);
                 }
             }
-            int zBias = gRoadDecalZBias.load(std::memory_order_relaxed);
-            if (ImGui::SliderInt("ZBias", &zBias, 1, 8)) {
-                gRoadDecalZBias.store(zBias, std::memory_order_relaxed);
-            }
 
-            if (ImGui::Button("Rebuild Geometry")) {
-                RebuildRoadDecalGeometry();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Force Full Redraw")) {
-                ForceFullRedrawNow();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Undo Last")) {
+            if (ImGui::Button("Undo")) {
                 if (!gRoadDecalStrokes.empty()) {
                     gRoadDecalStrokes.pop_back();
                     RebuildRoadDecalGeometry();
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Clear All")) {
+            if (ImGui::Button("Clear")) {
                 if (!gRoadDecalStrokes.empty()) {
                     gRoadDecalStrokes.clear();
                     RebuildRoadDecalGeometry();
                 }
             }
 
-            ImGui::Text("Strokes: %u", static_cast<uint32_t>(gRoadDecalStrokes.size()));
-            ImGui::TextUnformatted("Input: LMB place points, move for preview, RMB/Enter finish stroke.");
-            ImGui::TextUnformatted("Shortcuts: Ctrl+Z undo, Delete clear all, Esc cancel current stroke.");
+            //ImGui::Text("Strokes: %u", static_cast<uint32_t>(gRoadDecalStrokes.size()));
+            //ImGui::TextUnformatted("LMB add points, Shift hard corner, RMB/Enter finish, Ctrl+Z undo, Delete clear.");
             ImGui::End();
         }
     };

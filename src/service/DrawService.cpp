@@ -49,6 +49,12 @@ DrawService::DrawService()
         {"Draw::DrawPreDynamicView_", DrawServicePass::PreDynamic, 0x007CB84C, 0, 0, reinterpret_cast<void*>(&HookPreDynamic), false},
         {"Draw::DrawDynamicView_", DrawServicePass::Dynamic, 0x007CB853, 0, 0, reinterpret_cast<void*>(&HookDynamic), false},
         {"Draw::DrawPostDynamicView_", DrawServicePass::PostDynamic, 0x007CB85A, 0, 0, reinterpret_cast<void*>(&HookPostDynamic), false},
+        {"DoTranslatedViewUpdate::DrawPreDynamicView_", DrawServicePass::PreDynamic, 0x007CA964, 0, 0, reinterpret_cast<void*>(&HookPreDynamic), false},
+        {"DoTranslatedViewUpdate::DrawDynamicView_", DrawServicePass::Dynamic, 0x007CA96B, 0, 0, reinterpret_cast<void*>(&HookDynamic), false},
+        {"DoTranslatedViewUpdate::DrawPostDynamicView_", DrawServicePass::PostDynamic, 0x007CA972, 0, 0, reinterpret_cast<void*>(&HookPostDynamic), false},
+        {"UpdateViewportRect::DrawPreStaticView_", DrawServicePass::PreStatic, 0x007C9522, 0, 0, reinterpret_cast<void*>(&HookPreStatic), false},
+        {"UpdateViewportRect::DrawStaticView_", DrawServicePass::Static, 0x007C9529, 0, 0, reinterpret_cast<void*>(&HookStatic), false},
+        {"UpdateViewportRect::DrawPostStaticView_", DrawServicePass::PostStatic, 0x007C9530, 0, 0, reinterpret_cast<void*>(&HookPostStatic), false},
     }};
     activeInstance_ = this;
 }

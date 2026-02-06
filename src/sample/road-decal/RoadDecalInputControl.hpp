@@ -29,11 +29,12 @@ public:
 
     void SetStyle(int styleId);
     void SetWidth(float width);
+    void SetDashed(bool dashed);
     void SetOnCancel(std::function<void()> onCancel);
 
 private:
-    bool BeginStroke_(int32_t screenX, int32_t screenZ);
-    bool AddSamplePoint_(int32_t screenX, int32_t screenZ);
+    bool BeginStroke_(int32_t screenX, int32_t screenZ, uint32_t modifiers);
+    bool AddSamplePoint_(int32_t screenX, int32_t screenZ, uint32_t modifiers);
     bool EndStroke_(bool commit);
     void CancelStroke_();
     bool PickWorld_(int32_t screenX, int32_t screenZ, RoadDecalPoint& outPoint);
@@ -52,6 +53,7 @@ private:
     RoadDecalPoint lastSamplePoint_;
     int styleId_;
     float width_;
+    bool dashed_;
 
     std::function<void()> onCancel_;
 };
