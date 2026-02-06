@@ -6,7 +6,26 @@
 #include "utils/Logger.h"
 #include "utils/VersionDetection.h"
 
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <windows.h>
+
 namespace {
+    bool IsValidPass(const DrawServicePass pass) {
+        switch (pass) {
+        case DrawServicePass::PreStatic:
+        case DrawServicePass::Static:
+        case DrawServicePass::PostStatic:
+        case DrawServicePass::PreDynamic:
+        case DrawServicePass::Dynamic:
+        case DrawServicePass::PostDynamic:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     struct cS3DVector4 {
         float x;
         float y;
@@ -15,9 +34,24 @@ namespace {
     };
 }
 
+DrawService* DrawService::activeInstance_ = nullptr;
+
 DrawService::DrawService()
     : cRZBaseSystemService(kDrawServiceID, 0)
-      , versionTag_(VersionDetection::GetInstance().GetGameVersion()) {}
+      , versionTag_(VersionDetection::GetInstance().GetGameVersion()) {
+    callSitePatches_ = {{
+        {"Draw::DrawPreStaticView_ [A]", DrawServicePass::PreStatic, 0x007CB770, 0, 0, reinterpret_cast<void*>(&HookPreStatic), false},
+        {"Draw::DrawStaticView_ [A]", DrawServicePass::Static, 0x007CB777, 0, 0, reinterpret_cast<void*>(&HookStatic), false},
+        {"Draw::DrawPostStaticView_ [A]", DrawServicePass::PostStatic, 0x007CB77E, 0, 0, reinterpret_cast<void*>(&HookPostStatic), false},
+        {"Draw::DrawPreStaticView_ [B]", DrawServicePass::PreStatic, 0x007CB82A, 0, 0, reinterpret_cast<void*>(&HookPreStatic), false},
+        {"Draw::DrawStaticView_ [B]", DrawServicePass::Static, 0x007CB831, 0, 0, reinterpret_cast<void*>(&HookStatic), false},
+        {"Draw::DrawPostStaticView_ [B]", DrawServicePass::PostStatic, 0x007CB838, 0, 0, reinterpret_cast<void*>(&HookPostStatic), false},
+        {"Draw::DrawPreDynamicView_", DrawServicePass::PreDynamic, 0x007CB84C, 0, 0, reinterpret_cast<void*>(&HookPreDynamic), false},
+        {"Draw::DrawDynamicView_", DrawServicePass::Dynamic, 0x007CB853, 0, 0, reinterpret_cast<void*>(&HookDynamic), false},
+        {"Draw::DrawPostDynamicView_", DrawServicePass::PostDynamic, 0x007CB85A, 0, 0, reinterpret_cast<void*>(&HookPostDynamic), false},
+    }};
+    activeInstance_ = this;
+}
 
 uint32_t DrawService::AddRef() {
     return cRZBaseSystemService::AddRef();
@@ -95,6 +129,53 @@ void DrawService::RendererDrawPostDynamicView() {
     void* renderer = GetActiveRendererInternal();
     if (renderer && thunks_.drawPostDynamicView) {
         thunks_.drawPostDynamicView(renderer);
+    }
+}
+
+bool DrawService::RegisterDrawPassCallback(const DrawServicePass pass, DrawPassCallback callback,
+                                           void* userData, uint32_t* outToken) {
+    if (!callback || !outToken || versionTag_ != 641 || !IsValidPass(pass)) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!IsPassInstalledLocked_(pass) && !InstallPassCallSitePatchesLocked_(pass)) {
+        LOG_WARN("DrawService: failed to install hook for draw pass {}", static_cast<int>(pass));
+        return false;
+    }
+
+    uint32_t token = nextCallbackToken_++;
+    if (token == 0) {
+        token = nextCallbackToken_++;
+    }
+    passCallbacks_.push_back({token, pass, callback, userData});
+    *outToken = token;
+    return true;
+}
+
+void DrawService::UnregisterDrawPassCallback(const uint32_t token) {
+    if (!token) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = std::find_if(passCallbacks_.begin(), passCallbacks_.end(),
+                                 [token](const DrawPassCallbackRegistration& reg) {
+                                     return reg.token == token;
+                                 });
+    if (it == passCallbacks_.end()) {
+        return;
+    }
+
+    const DrawServicePass pass = it->pass;
+    passCallbacks_.erase(it);
+
+    const bool passStillInUse = std::any_of(passCallbacks_.begin(), passCallbacks_.end(),
+                                            [pass](const DrawPassCallbackRegistration& reg) {
+                                                return reg.pass == pass;
+                                            });
+    if (!passStillInUse) {
+        UninstallPassCallSitePatchesLocked_(pass);
     }
 }
 
@@ -488,6 +569,189 @@ void DrawService::DrawRect(const SC4DrawContextHandle handle, void* drawTarget, 
     }
 }
 
+void __fastcall DrawService::HookPreStatic(void* self, void*) {
+    if (auto* service = GetActiveInstance()) {
+        service->OnPassHook(DrawServicePass::PreStatic, self);
+    }
+}
+
+void __fastcall DrawService::HookStatic(void* self, void*) {
+    if (auto* service = GetActiveInstance()) {
+        service->OnPassHook(DrawServicePass::Static, self);
+    }
+}
+
+void __fastcall DrawService::HookPostStatic(void* self, void*) {
+    if (auto* service = GetActiveInstance()) {
+        service->OnPassHook(DrawServicePass::PostStatic, self);
+    }
+}
+
+void __fastcall DrawService::HookPreDynamic(void* self, void*) {
+    if (auto* service = GetActiveInstance()) {
+        service->OnPassHook(DrawServicePass::PreDynamic, self);
+    }
+}
+
+void __fastcall DrawService::HookDynamic(void* self, void*) {
+    if (auto* service = GetActiveInstance()) {
+        service->OnPassHook(DrawServicePass::Dynamic, self);
+    }
+}
+
+void __fastcall DrawService::HookPostDynamic(void* self, void*) {
+    if (auto* service = GetActiveInstance()) {
+        service->OnPassHook(DrawServicePass::PostDynamic, self);
+    }
+}
+
+DrawService* DrawService::GetActiveInstance() {
+    return activeInstance_;
+}
+
+bool DrawService::ComputeRelativeCallTarget(const uintptr_t callSiteAddress, const uintptr_t targetAddress, int32_t& relOut) {
+    const auto delta = static_cast<intptr_t>(targetAddress) - static_cast<intptr_t>(callSiteAddress + kHookByteCount);
+    if (delta < static_cast<intptr_t>(INT32_MIN) || delta > static_cast<intptr_t>(INT32_MAX)) {
+        return false;
+    }
+
+    relOut = static_cast<int32_t>(delta);
+    return true;
+}
+
+bool DrawService::InstallCallSitePatchLocked_(CallSitePatch& patch) {
+    if (patch.installed) {
+        return true;
+    }
+
+    auto* site = reinterpret_cast<uint8_t*>(patch.callSiteAddress);
+    if (site[0] != 0xE8) {
+        LOG_ERROR("DrawService: expected CALL rel32 at 0x{:08X} for {}",
+                  static_cast<uint32_t>(patch.callSiteAddress),
+                  patch.name);
+        return false;
+    }
+
+    std::memcpy(&patch.originalRel, site + 1, sizeof(patch.originalRel));
+    patch.originalTarget = patch.callSiteAddress + kHookByteCount + patch.originalRel;
+
+    int32_t newRel = 0;
+    if (!ComputeRelativeCallTarget(patch.callSiteAddress, reinterpret_cast<uintptr_t>(patch.hookFn), newRel)) {
+        LOG_ERROR("DrawService: rel32 range failure for {}", patch.name);
+        return false;
+    }
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(site + 1, sizeof(newRel), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        LOG_ERROR("DrawService: VirtualProtect failed for {}", patch.name);
+        return false;
+    }
+
+    std::memcpy(site + 1, &newRel, sizeof(newRel));
+    FlushInstructionCache(GetCurrentProcess(), site, kHookByteCount);
+    VirtualProtect(site + 1, sizeof(newRel), oldProtect, &oldProtect);
+
+    patch.installed = true;
+    return true;
+}
+
+void DrawService::UninstallCallSitePatchLocked_(CallSitePatch& patch) {
+    if (!patch.installed) {
+        return;
+    }
+
+    auto* site = reinterpret_cast<uint8_t*>(patch.callSiteAddress);
+    DWORD oldProtect = 0;
+    if (VirtualProtect(site + 1, sizeof(patch.originalRel), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        std::memcpy(site + 1, &patch.originalRel, sizeof(patch.originalRel));
+        FlushInstructionCache(GetCurrentProcess(), site, kHookByteCount);
+        VirtualProtect(site + 1, sizeof(patch.originalRel), oldProtect, &oldProtect);
+    }
+
+    patch.installed = false;
+    patch.originalTarget = 0;
+    patch.originalRel = 0;
+}
+
+bool DrawService::InstallPassCallSitePatchesLocked_(const DrawServicePass pass) {
+    for (auto& patch : callSitePatches_) {
+        if (patch.pass != pass) {
+            continue;
+        }
+        if (!InstallCallSitePatchLocked_(patch)) {
+            for (auto& rollbackPatch : callSitePatches_) {
+                if (rollbackPatch.pass == pass) {
+                    UninstallCallSitePatchLocked_(rollbackPatch);
+                }
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+void DrawService::UninstallPassCallSitePatchesLocked_(const DrawServicePass pass) {
+    for (auto& patch : callSitePatches_) {
+        if (patch.pass == pass) {
+            UninstallCallSitePatchLocked_(patch);
+        }
+    }
+}
+
+bool DrawService::IsPassInstalledLocked_(const DrawServicePass pass) const {
+    bool found = false;
+    for (const auto& patch : callSitePatches_) {
+        if (patch.pass != pass) {
+            continue;
+        }
+        found = true;
+        if (!patch.installed) {
+            return false;
+        }
+    }
+    return found;
+}
+
+uintptr_t DrawService::GetOriginalTargetForPassLocked_(const DrawServicePass pass) const {
+    for (const auto& patch : callSitePatches_) {
+        if (patch.pass == pass && patch.installed) {
+            return patch.originalTarget;
+        }
+    }
+    return 0;
+}
+
+void DrawService::DispatchDrawPassCallbacksLocked_(const DrawServicePass pass, const bool begin) {
+    for (const auto& reg : passCallbacks_) {
+        if (reg.pass == pass) {
+            reg.callback(pass, begin, reg.userData);
+        }
+    }
+}
+
+void DrawService::OnPassHook(const DrawServicePass pass, void* self) {
+    uintptr_t originalTarget;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        originalTarget = GetOriginalTargetForPassLocked_(pass);
+        DispatchDrawPassCallbacksLocked_(pass, true);
+    }
+    if (originalTarget) {
+        const auto fn = reinterpret_cast<void(__thiscall*)(void*)>(originalTarget);
+        fn(self);
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        DispatchDrawPassCallbacksLocked_(pass, false);
+    }
+}
+
+void DrawService::UninstallAllPassHooksLocked_() {
+    for (auto& patch : callSitePatches_) {
+        UninstallCallSitePatchLocked_(patch);
+    }
+}
+
 bool DrawService::Init() {
     if (versionTag_ != 641) {
         LOG_WARN("DrawService: not registering, game version {} != 641", versionTag_);
@@ -505,8 +769,7 @@ bool DrawService::Init() {
     thunks_.drawPostDynamicView = reinterpret_cast<void (__thiscall*)(void*)>(0x007C3E50);
     thunks_.setHighlightColor = reinterpret_cast<void (__thiscall*)(void*, int, const void*)>(0x007D4F80);
     thunks_.setRenderStateHighlightSimple = reinterpret_cast<void (__thiscall*)(void*, int)>(0x007D4FB0);
-    thunks_.setRenderStateHighlightMaterial =
-        reinterpret_cast<void (__thiscall*)(void*, const void*, const void*)>(0x007D5670);
+    thunks_.setRenderStateHighlightMaterial = reinterpret_cast<void (__thiscall*)(void*, const void*, const void*)>(0x007D5670);
     thunks_.setModelTransform = reinterpret_cast<void (__thiscall*)(void*, const void*)>(0x007D3400);
     thunks_.setModelTransformFloats = reinterpret_cast<void (__thiscall*)(void*, float*)>(0x007D4B80);
     thunks_.setModelViewTransformChanged = reinterpret_cast<void (__thiscall*)(void*, int)>(0x007D2750);
@@ -522,8 +785,7 @@ bool DrawService::Init() {
     thunks_.setDefaultRenderStateUnilaterally = reinterpret_cast<void (__fastcall*)(void*)>(0x007D5230);
     thunks_.setEmulatedSecondStageRenderState = reinterpret_cast<void (__thiscall*)(void*)>(0x007D47E0);
     thunks_.renderMesh = reinterpret_cast<void (__thiscall*)(void*, void*)>(0x007D4A80);
-    thunks_.renderModelInstance =
-        reinterpret_cast<void (__thiscall*)(void*, int*, int*, uint8_t*, bool)>(0x007D5710);
+    thunks_.renderModelInstance = reinterpret_cast<void (__thiscall*)(void*, int*, int*, uint8_t*, bool)>(0x007D5710);
     thunks_.setTexWrapModes = reinterpret_cast<void (__thiscall*)(void*, int, int, int)>(0x007D41E0);
     thunks_.setTexFiltering = reinterpret_cast<void (__thiscall*)(void*, int, int, int)>(0x007D4280);
     thunks_.setTexture = reinterpret_cast<void (__thiscall*)(void*, uint32_t, int)>(0x007D4070);
@@ -557,8 +819,7 @@ bool DrawService::Init() {
     thunks_.drawBoundingBox = reinterpret_cast<void (__thiscall*)(void*, float*, const void*)>(0x007D5030);
     thunks_.drawPrims = reinterpret_cast<void (__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x007D2990);
     thunks_.drawPrimsIndexed = reinterpret_cast<void (__thiscall*)(void*, uint8_t, long, long)>(0x007D29C0);
-    thunks_.drawPrimsIndexedRaw =
-        reinterpret_cast<void (__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x007D29F0);
+    thunks_.drawPrimsIndexedRaw = reinterpret_cast<void (__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x007D29F0);
     thunks_.drawRect = reinterpret_cast<void (__thiscall*)(void*, void*, int*)>(0x00735720);
 
     LOG_INFO("DrawService: bound 641 draw-context thunks and registered");
@@ -566,6 +827,14 @@ bool DrawService::Init() {
 }
 
 bool DrawService::Shutdown() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        passCallbacks_.clear();
+        UninstallAllPassHooksLocked_();
+    }
+    if (activeInstance_ == this) {
+        activeInstance_ = nullptr;
+    }
     return true;
 }
 

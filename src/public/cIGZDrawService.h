@@ -14,6 +14,17 @@ struct SC4DrawContextHandle {
     uint16_t version;
 };
 
+enum class DrawServicePass : uint8_t {
+    PreStatic = 0,
+    Static,
+    PostStatic,
+    PreDynamic,
+    Dynamic,
+    PostDynamic
+};
+
+using DrawPassCallback = void (*)(DrawServicePass pass, bool begin, void* userData);
+
 // ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
 class cIGZDrawService : public cIGZUnknown {
 public:
@@ -31,6 +42,9 @@ public:
     virtual void RendererDrawPreDynamicView() = 0;
     virtual void RendererDrawDynamicView() = 0;
     virtual void RendererDrawPostDynamicView() = 0;
+    virtual bool RegisterDrawPassCallback(DrawServicePass pass, DrawPassCallback callback,
+                                          void* userData, uint32_t* outToken) = 0;
+    virtual void UnregisterDrawPassCallback(uint32_t token) = 0;
 
     virtual void SetHighlightColor(SC4DrawContextHandle handle, int highlightType,
                                    float r, float g, float b, float a) = 0;

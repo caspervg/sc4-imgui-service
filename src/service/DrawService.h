@@ -1,6 +1,9 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <mutex>
+#include <vector>
 
 #include "cRZBaseSystemService.h"
 #include "public/cIGZDrawService.h"
@@ -28,6 +31,9 @@ public:
     void RendererDrawPreDynamicView() override;
     void RendererDrawDynamicView() override;
     void RendererDrawPostDynamicView() override;
+    bool RegisterDrawPassCallback(DrawServicePass pass, DrawPassCallback callback,
+                                  void* userData, uint32_t* outToken) override;
+    void UnregisterDrawPassCallback(uint32_t token) override;
     void SetHighlightColor(SC4DrawContextHandle handle, int highlightType,
                            float r, float g, float b, float a) override;
     void SetRenderStateHighlight(SC4DrawContextHandle handle, int highlightType) override;
@@ -94,6 +100,45 @@ public:
     bool Shutdown();
 
 private:
+    static constexpr size_t kHookByteCount = 5;
+    static constexpr size_t kCallSitePatchCount = 9;
+
+    struct DrawPassCallbackRegistration {
+        uint32_t token = 0;
+        DrawServicePass pass = DrawServicePass::PreStatic;
+        DrawPassCallback callback = nullptr;
+        void* userData = nullptr;
+    };
+
+    struct CallSitePatch {
+        const char* name = nullptr;
+        DrawServicePass pass = DrawServicePass::PreStatic;
+        uintptr_t callSiteAddress = 0;
+        uintptr_t originalTarget = 0;
+        int32_t originalRel = 0;
+        void* hookFn = nullptr;
+        bool installed = false;
+    };
+
+    static void __fastcall HookPreStatic(void* self, void*);
+    static void __fastcall HookStatic(void* self, void*);
+    static void __fastcall HookPostStatic(void* self, void*);
+    static void __fastcall HookPreDynamic(void* self, void*);
+    static void __fastcall HookDynamic(void* self, void*);
+    static void __fastcall HookPostDynamic(void* self, void*);
+    static DrawService* GetActiveInstance();
+
+    static bool ComputeRelativeCallTarget(uintptr_t callSiteAddress, uintptr_t targetAddress, int32_t& relOut);
+    bool InstallCallSitePatchLocked_(CallSitePatch& patch);
+    void UninstallCallSitePatchLocked_(CallSitePatch& patch);
+    bool InstallPassCallSitePatchesLocked_(DrawServicePass pass);
+    void UninstallPassCallSitePatchesLocked_(DrawServicePass pass);
+    bool IsPassInstalledLocked_(DrawServicePass pass) const;
+    uintptr_t GetOriginalTargetForPassLocked_(DrawServicePass pass) const;
+    void DispatchDrawPassCallbacksLocked_(DrawServicePass pass, bool begin);
+    void OnPassHook(DrawServicePass pass, void* self);
+    void UninstallAllPassHooksLocked_();
+
     struct Thunks {
         void* (__thiscall* getDrawContext)(void* renderer);
         uint32_t (__thiscall* rendererDraw)(void* renderer);
@@ -167,4 +212,9 @@ private:
 private:
     Thunks thunks_{};
     uint16_t versionTag_{};
+    static DrawService* activeInstance_;
+    std::array<CallSitePatch, kCallSitePatchCount> callSitePatches_{};
+    std::vector<DrawPassCallbackRegistration> passCallbacks_{};
+    mutable std::mutex mutex_{};
+    uint32_t nextCallbackToken_ = 1;
 };

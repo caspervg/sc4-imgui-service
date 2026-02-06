@@ -4,6 +4,7 @@
 #include "imgui.h"
 #include "public/ImGuiPanelAdapter.h"
 #include "public/ImGuiServiceIds.h"
+#include "public/cIGZDrawService.h"
 #include "public/cIGZImGuiService.h"
 #include "cISC43DRender.h"
 #include "sample/road-decal/RoadDecalData.hpp"
@@ -14,133 +15,16 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
-#include <cstring>
-#include <windows.h>
 
 namespace
 {
     constexpr uint32_t kRoadDecalDirectorID = 0xE59A5D21;
     constexpr uint32_t kRoadDecalPanelId = 0x9B4A7A11;
-    constexpr uintptr_t kPreDynamicCallSiteAddress = 0x007CB84C;
-    constexpr size_t kHookByteCount = 5;
-
-    struct CallSitePatch
-    {
-        const char* name = nullptr;
-        uintptr_t callSiteAddress = 0;
-        uintptr_t originalTarget = 0;
-        int32_t originalRel = 0;
-        void* hookFn = nullptr;
-        bool installed = false;
-    };
-
-    void(__thiscall* gOrigPreDynamic)(void*) = nullptr;
-    CallSitePatch gPreDynamicPatch{
-        "Draw::DrawPreDynamicView_",
-        kPreDynamicCallSiteAddress,
-        0,
-        0,
-        nullptr,
-        false};
 
     RoadDecalInputControl* gRoadDecalTool = nullptr;
     std::atomic<bool> gRoadDecalToolEnabled{false};
     std::atomic<int> gRoadDecalStyle{0};
     std::atomic<float> gRoadDecalWidth{0.5f};
-
-    bool ComputeRelativeCallTarget(uintptr_t callSiteAddress, uintptr_t targetAddress, int32_t& relOut)
-    {
-        const auto delta =
-            static_cast<intptr_t>(targetAddress) - static_cast<intptr_t>(callSiteAddress + kHookByteCount);
-        if (delta < static_cast<intptr_t>(INT32_MIN) || delta > static_cast<intptr_t>(INT32_MAX)) {
-            return false;
-        }
-
-        relOut = static_cast<int32_t>(delta);
-        return true;
-    }
-
-    bool InstallCallSitePatch(CallSitePatch& patch)
-    {
-        if (patch.installed) {
-            return true;
-        }
-
-        auto* site = reinterpret_cast<uint8_t*>(patch.callSiteAddress);
-        if (site[0] != 0xE8) {
-            LOG_ERROR("RoadDecalSample: expected CALL rel32 at 0x{:08X} for {}",
-                      static_cast<uint32_t>(patch.callSiteAddress),
-                      patch.name);
-            return false;
-        }
-
-        std::memcpy(&patch.originalRel, site + 1, sizeof(patch.originalRel));
-        patch.originalTarget = patch.callSiteAddress + kHookByteCount + patch.originalRel;
-
-        int32_t newRel = 0;
-        if (!ComputeRelativeCallTarget(patch.callSiteAddress, reinterpret_cast<uintptr_t>(patch.hookFn), newRel)) {
-            LOG_ERROR("RoadDecalSample: rel32 range failure for {}", patch.name);
-            return false;
-        }
-
-        DWORD oldProtect = 0;
-        if (!VirtualProtect(site + 1, sizeof(newRel), PAGE_EXECUTE_READWRITE, &oldProtect)) {
-            LOG_ERROR("RoadDecalSample: VirtualProtect failed for {}", patch.name);
-            return false;
-        }
-
-        std::memcpy(site + 1, &newRel, sizeof(newRel));
-        FlushInstructionCache(GetCurrentProcess(), site, kHookByteCount);
-        VirtualProtect(site + 1, sizeof(newRel), oldProtect, &oldProtect);
-
-        patch.installed = true;
-        return true;
-    }
-
-    void UninstallCallSitePatch(CallSitePatch& patch)
-    {
-        if (!patch.installed) {
-            return;
-        }
-
-        auto* site = reinterpret_cast<uint8_t*>(patch.callSiteAddress);
-        DWORD oldProtect = 0;
-        if (VirtualProtect(site + 1, sizeof(patch.originalRel), PAGE_EXECUTE_READWRITE, &oldProtect)) {
-            std::memcpy(site + 1, &patch.originalRel, sizeof(patch.originalRel));
-            FlushInstructionCache(GetCurrentProcess(), site, kHookByteCount);
-            VirtualProtect(site + 1, sizeof(patch.originalRel), oldProtect, &oldProtect);
-        }
-
-        patch.installed = false;
-        patch.originalTarget = 0;
-        patch.originalRel = 0;
-    }
-
-    bool InstallPreDynamicHook()
-    {
-        if (gPreDynamicPatch.installed) {
-            return true;
-        }
-
-        if (!InstallCallSitePatch(gPreDynamicPatch)) {
-            gOrigPreDynamic = nullptr;
-            return false;
-        }
-
-        gOrigPreDynamic = reinterpret_cast<void(__thiscall*)(void*)>(gPreDynamicPatch.originalTarget);
-        LOG_INFO("RoadDecalSample: installed pre-dynamic pass hook");
-        return true;
-    }
-
-    void UninstallPreDynamicHook()
-    {
-        if (gPreDynamicPatch.installed) {
-            LOG_INFO("RoadDecalSample: removed pre-dynamic pass hook");
-        }
-
-        UninstallCallSitePatch(gPreDynamicPatch);
-        gOrigPreDynamic = nullptr;
-    }
 
     bool EnableRoadDecalTool()
     {
@@ -199,10 +83,10 @@ namespace
         }
     }
 
-    void __fastcall HookPreDynamic(void* self, void*)
+    void DrawPassRoadDecalCallback(DrawServicePass pass, bool begin, void*)
     {
-        if (gOrigPreDynamic) {
-            gOrigPreDynamic(self);
+        if (pass != DrawServicePass::PreDynamic || begin) {
+            return;
         }
         DrawRoadDecals();
     }
@@ -340,16 +224,33 @@ public:
         panelRegistered_ = true;
         gImGuiServiceForD3DOverlay.store(imguiService_, std::memory_order_release);
 
-        gPreDynamicPatch.hookFn = reinterpret_cast<void*>(&HookPreDynamic);
-        if (!InstallPreDynamicHook()) {
-            LOG_WARN("RoadDecalSample: pre-dynamic hook install failed");
+        if (!mpFrameWork->GetSystemService(kDrawServiceID,
+                                           GZIID_cIGZDrawService,
+                                           reinterpret_cast<void**>(&drawService_))) {
+            LOG_WARN("RoadDecalSample: Draw service not available; decals will not be drawn");
+            return true;
+        }
+
+        if (!drawService_->RegisterDrawPassCallback(DrawServicePass::PreDynamic,
+                                                    &DrawPassRoadDecalCallback,
+                                                    nullptr,
+                                                    &drawPassCallbackToken_)) {
+            LOG_WARN("RoadDecalSample: failed to subscribe to pre-dynamic draw pass");
         }
         return true;
     }
 
     bool PostAppShutdown() override
     {
-        UninstallPreDynamicHook();
+        if (drawService_) {
+            if (drawPassCallbackToken_ != 0) {
+                drawService_->UnregisterDrawPassCallback(drawPassCallbackToken_);
+                drawPassCallbackToken_ = 0;
+            }
+            drawService_->Release();
+            drawService_ = nullptr;
+        }
+
         DestroyRoadDecalTool();
         gImGuiServiceForD3DOverlay.store(nullptr, std::memory_order_release);
 
@@ -365,6 +266,8 @@ public:
 
 private:
     cIGZImGuiService* imguiService_ = nullptr;
+    cIGZDrawService* drawService_ = nullptr;
+    uint32_t drawPassCallbackToken_ = 0;
     bool panelRegistered_ = false;
 };
 
