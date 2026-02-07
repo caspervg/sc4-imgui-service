@@ -167,9 +167,6 @@ namespace
         IDirectDrawSurface7* texture1 = nullptr;
     };
 
-    void BuildStrokeVertices(const RoadMarkupStroke& stroke, std::vector<RoadDecalVertex>& outVerts);
-    void DrawVertexBuffer(IDirect3DDevice7* device, const std::vector<RoadDecalVertex>& verts);
-
     struct RoadDecalVertex
     {
         float x;
@@ -177,6 +174,9 @@ namespace
         float z;
         DWORD diffuse;
     };
+
+    void BuildStrokeVertices(const RoadMarkupStroke& stroke, std::vector<RoadDecalVertex>& outVerts);
+    void DrawVertexBuffer(IDirect3DDevice7* device, const std::vector<RoadDecalVertex>& verts);
 
     std::vector<RoadDecalVertex> gRoadDecalVertices;
     std::vector<RoadDecalVertex> gRoadDecalActiveVertices;
