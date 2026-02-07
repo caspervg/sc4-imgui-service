@@ -35,6 +35,8 @@ public:
     void SetDashed(bool dashed);
     void SetDashPattern(float dashLength, float gapLength);
     void SetAutoAlign(bool enabled);
+    void SetColor(uint32_t color);
+    void SetOnRotationChanged(std::function<void(float)> onRotationChanged);
     void SetOnCancel(std::function<void()> onCancel);
 
 private:
@@ -44,6 +46,8 @@ private:
     void CancelStroke_();
     bool PickWorld_(int32_t screenX, int32_t screenZ, RoadDecalPoint& outPoint);
     void UpdatePreviewFromScreen_(int32_t screenX, int32_t screenZ);
+    void UpdateGridPreviewFromScreen_(int32_t screenX, int32_t screenZ);
+    void UpdateHoverPreviewFromScreen_(int32_t screenX, int32_t screenZ);
     void ClearPreview_();
     void RefreshActiveStroke_();
     void RequestFullRedraw_();
@@ -53,9 +57,11 @@ private:
 private:
     bool isActive_;
     bool isDrawing_;
+    bool hasGridPreviewPoint_;
 
     RoadMarkupStroke currentStroke_;
     RoadDecalPoint lastSamplePoint_;
+    RoadDecalPoint lastGridPreviewPoint_;
     RoadMarkupType markupType_;
     PlacementMode placementMode_;
     float width_;
@@ -65,6 +71,8 @@ private:
     float dashLength_;
     float gapLength_;
     bool autoAlign_;
+    uint32_t color_;
+    std::function<void(float)> onRotationChanged_;
 
     std::function<void()> onCancel_;
 };

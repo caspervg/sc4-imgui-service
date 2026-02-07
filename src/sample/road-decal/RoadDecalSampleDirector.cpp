@@ -11,6 +11,7 @@
 #include "utils/Logger.h"
 #include "SC4UI.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 
@@ -31,7 +32,27 @@ namespace
     float gDashLength = 3.0f;
     float gGapLength = 9.0f;
     bool gAutoAlign = true;
+    bool gUseTypeDefaultColor = true;
+    uint32_t gCustomColor = 0xE0FFFFFF;
     char gSavePath[260] = "road_markups.dat";
+
+    ImVec4 ColorToImVec4(uint32_t argb)
+    {
+        const float a = static_cast<float>((argb >> 24U) & 0xFFU) / 255.0f;
+        const float r = static_cast<float>((argb >> 16U) & 0xFFU) / 255.0f;
+        const float g = static_cast<float>((argb >> 8U) & 0xFFU) / 255.0f;
+        const float b = static_cast<float>(argb & 0xFFU) / 255.0f;
+        return {r, g, b, a};
+    }
+
+    uint32_t ImVec4ToColor(const ImVec4& c)
+    {
+        const uint32_t a = static_cast<uint32_t>(std::clamp(c.w, 0.0f, 1.0f) * 255.0f);
+        const uint32_t r = static_cast<uint32_t>(std::clamp(c.x, 0.0f, 1.0f) * 255.0f);
+        const uint32_t g = static_cast<uint32_t>(std::clamp(c.y, 0.0f, 1.0f) * 255.0f);
+        const uint32_t b = static_cast<uint32_t>(std::clamp(c.z, 0.0f, 1.0f) * 255.0f);
+        return (a << 24U) | (r << 16U) | (g << 8U) | b;
+    }
 
     void SyncToolSettings()
     {
@@ -46,6 +67,10 @@ namespace
         gRoadDecalTool->SetDashed(gDashed);
         gRoadDecalTool->SetDashPattern(gDashLength, gGapLength);
         gRoadDecalTool->SetAutoAlign(gAutoAlign);
+        const uint32_t resolvedColor = gUseTypeDefaultColor
+            ? GetRoadMarkupProperties(gSelectedType).defaultColor
+            : gCustomColor;
+        gRoadDecalTool->SetColor(resolvedColor);
     }
 
     bool EnableRoadDecalTool()
@@ -63,6 +88,9 @@ namespace
         if (!gRoadDecalTool) {
             gRoadDecalTool = new RoadDecalInputControl();
             gRoadDecalTool->AddRef();
+            gRoadDecalTool->SetOnRotationChanged([](float radians) {
+                gRotationDeg = radians * 180.0f / 3.1415926f;
+            });
             gRoadDecalTool->SetOnCancel([]() {});
             gRoadDecalTool->Activate();
         }
@@ -123,6 +151,9 @@ namespace
                 gWidth = props.defaultWidth > 0.0f ? props.defaultWidth : gWidth;
                 gLength = props.defaultLength > 0.0f ? props.defaultLength : gLength;
                 gDashed = props.supportsDashing;
+                if (gUseTypeDefaultColor) {
+                    gCustomColor = props.defaultColor;
+                }
 
                 if (category == RoadMarkupCategory::DirectionalArrow) {
                     gPlacementMode = PlacementMode::SingleClick;
@@ -136,6 +167,23 @@ namespace
                 ImGui::SameLine();
             }
         }
+    }
+
+    const char* PlacementModeName(PlacementMode mode)
+    {
+        switch (mode) {
+            case PlacementMode::Freehand:
+                return "Freehand";
+            case PlacementMode::TwoPoint:
+                return "Two Point";
+            case PlacementMode::SingleClick:
+                return "Single Click";
+            case PlacementMode::Rectangle:
+                return "Rectangle";
+            case PlacementMode::Snapping:
+                return "Snapping";
+        }
+        return "Unknown";
     }
 
     class RoadDecalPanel final : public ImGuiPanel
@@ -177,45 +225,108 @@ namespace
             }
 
             const auto& props = GetRoadMarkupProperties(gSelectedType);
+            const auto category = GetMarkupCategory(gSelectedType);
+            const bool showDashControls = props.supportsDashing && category == RoadMarkupCategory::LaneDivider;
+            const bool showLengthControl = (category == RoadMarkupCategory::DirectionalArrow ||
+                                            category == RoadMarkupCategory::ZoneMarking ||
+                                            category == RoadMarkupCategory::TextLabel ||
+                                            (category == RoadMarkupCategory::Crossing &&
+                                             gSelectedType != RoadMarkupType::StopBar));
+            const bool showRotationControls = (category == RoadMarkupCategory::DirectionalArrow ||
+                                               category == RoadMarkupCategory::ZoneMarking ||
+                                               category == RoadMarkupCategory::TextLabel ||
+                                               category == RoadMarkupCategory::Crossing);
+
             ImGui::Text("Selected: %s", props.displayName);
-            ImGui::SliderFloat("Width", &gWidth, 0.05f, 4.0f, "%.2f m");
-            ImGui::SliderFloat("Length", &gLength, 0.5f, 12.0f, "%.2f m");
-            ImGui::Checkbox("Dashed", &gDashed);
-            if (gDashed) {
+            if (category == RoadMarkupCategory::Crossing && gSelectedType == RoadMarkupType::StopBar) {
+                ImGui::SliderFloat("Thickness", &gWidth, 0.05f, 4.0f, "%.2f m");
+            } else {
+                ImGui::SliderFloat("Width", &gWidth, 0.05f, 4.0f, "%.2f m");
+            }
+            if (showLengthControl) {
+                const char* label = category == RoadMarkupCategory::Crossing ? "Depth" : "Length";
+                ImGui::SliderFloat(label, &gLength, 0.5f, 12.0f, "%.2f m");
+            }
+            if (showDashControls) {
+                ImGui::Checkbox("Dashed", &gDashed);
+            } else {
+                gDashed = false;
+            }
+            if (showDashControls && gDashed) {
                 ImGui::SliderFloat("Dash Length", &gDashLength, 0.2f, 12.0f, "%.2f m");
                 ImGui::SliderFloat("Gap Length", &gGapLength, 0.1f, 12.0f, "%.2f m");
             }
-            ImGui::Checkbox("Auto Align", &gAutoAlign);
-            if (!gAutoAlign) {
+            if (showRotationControls) {
+                ImGui::Checkbox("Auto Align", &gAutoAlign);
                 ImGui::SliderFloat("Rotation", &gRotationDeg, -180.0f, 180.0f, "%.0f deg");
+                if (ImGui::Button("-90")) {
+                    gRotationDeg -= 90.0f;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("+90")) {
+                    gRotationDeg += 90.0f;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Reset")) {
+                    gRotationDeg = 0.0f;
+                }
             }
 
-            int mode = static_cast<int>(gPlacementMode);
-            if (ImGui::RadioButton("Freehand", mode == static_cast<int>(PlacementMode::Freehand))) mode = static_cast<int>(PlacementMode::Freehand);
-            ImGui::SameLine();
-            if (ImGui::RadioButton("Two Point", mode == static_cast<int>(PlacementMode::TwoPoint))) mode = static_cast<int>(PlacementMode::TwoPoint);
-            ImGui::SameLine();
-            if (ImGui::RadioButton("Single", mode == static_cast<int>(PlacementMode::SingleClick))) mode = static_cast<int>(PlacementMode::SingleClick);
-            gPlacementMode = static_cast<PlacementMode>(mode);
+            // Normalize to [-180, 180] to keep the slider stable.
+            while (gRotationDeg > 180.0f) {
+                gRotationDeg -= 360.0f;
+            }
+            while (gRotationDeg < -180.0f) {
+                gRotationDeg += 360.0f;
+            }
+
+            ImGui::Checkbox("Use Type Color", &gUseTypeDefaultColor);
+            ImVec4 color = ColorToImVec4(gUseTypeDefaultColor ? props.defaultColor : gCustomColor);
+            if (ImGui::ColorEdit4("Color", &color.x)) {
+                gCustomColor = ImVec4ToColor(color);
+                gUseTypeDefaultColor = false;
+            }
+            ImGui::Text("Mode: %s", PlacementModeName(gPlacementMode));
 
             ImGui::Separator();
-            ImGui::Text("Layers");
-            for (size_t i = 0; i < gRoadMarkupLayers.size(); ++i) {
-                auto& layer = gRoadMarkupLayers[i];
-                ImGui::PushID(static_cast<int>(i));
-                ImGui::Checkbox("##vis", &layer.visible);
-                ImGui::SameLine();
-                if (ImGui::Selectable(layer.name.c_str(), gActiveLayerIndex == static_cast<int>(i))) {
-                    gActiveLayerIndex = static_cast<int>(i);
+            if (ImGui::CollapsingHeader("Layers", ImGuiTreeNodeFlags_DefaultOpen)) {
+                for (size_t i = 0; i < gRoadMarkupLayers.size(); ++i) {
+                    auto& layer = gRoadMarkupLayers[i];
+                    ImGui::PushID(static_cast<int>(i));
+                    ImGui::Checkbox("##vis", &layer.visible);
+                    ImGui::SameLine();
+                    if (ImGui::Selectable(layer.name.c_str(), gActiveLayerIndex == static_cast<int>(i))) {
+                        gActiveLayerIndex = static_cast<int>(i);
+                    }
+                    ImGui::PopID();
                 }
-                ImGui::PopID();
-            }
-            if (ImGui::Button("New Layer")) {
-                AddRoadMarkupLayer("Layer");
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Delete Layer")) {
-                DeleteActiveRoadMarkupLayer();
+                if (ImGui::Button("New")) {
+                    AddRoadMarkupLayer("Layer");
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Delete")) {
+                    DeleteActiveRoadMarkupLayer();
+                }
+                if (gActiveLayerIndex >= 0 && gActiveLayerIndex < static_cast<int>(gRoadMarkupLayers.size())) {
+                    ImGui::SameLine();
+                    if (ImGui::Button("Up") && gActiveLayerIndex > 0) {
+                        std::swap(gRoadMarkupLayers[gActiveLayerIndex], gRoadMarkupLayers[gActiveLayerIndex - 1]);
+                        --gActiveLayerIndex;
+                        for (size_t i = 0; i < gRoadMarkupLayers.size(); ++i) {
+                            gRoadMarkupLayers[i].renderOrder = static_cast<int>(i);
+                        }
+                        RebuildRoadDecalGeometry();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Down") && gActiveLayerIndex + 1 < static_cast<int>(gRoadMarkupLayers.size())) {
+                        std::swap(gRoadMarkupLayers[gActiveLayerIndex], gRoadMarkupLayers[gActiveLayerIndex + 1]);
+                        ++gActiveLayerIndex;
+                        for (size_t i = 0; i < gRoadMarkupLayers.size(); ++i) {
+                            gRoadMarkupLayers[i].renderOrder = static_cast<int>(i);
+                        }
+                        RebuildRoadDecalGeometry();
+                    }
+                }
             }
 
             ImGui::Separator();
@@ -229,13 +340,15 @@ namespace
                 RebuildRoadDecalGeometry();
             }
 
-            ImGui::InputText("File", gSavePath, sizeof(gSavePath));
-            if (ImGui::Button("Save")) {
-                SaveMarkupsToFile(gSavePath);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Load")) {
-                LoadMarkupsFromFile(gSavePath);
+            if (ImGui::CollapsingHeader("Persistence")) {
+                ImGui::InputText("File", gSavePath, sizeof(gSavePath));
+                if (ImGui::Button("Save")) {
+                    SaveMarkupsToFile(gSavePath);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Load")) {
+                    LoadMarkupsFromFile(gSavePath);
+                }
             }
 
             ImGui::Text("Markings: %u", static_cast<uint32_t>(GetTotalRoadMarkupStrokeCount()));

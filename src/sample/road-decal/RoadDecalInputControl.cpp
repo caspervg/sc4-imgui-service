@@ -25,6 +25,7 @@ namespace
     constexpr float kSnapSubgridMeters = 2.0f;
     constexpr float kDecalHeightOffset = 0.05f;
     constexpr float kMinSampleDist = 0.5f;
+    constexpr float kRotationStep = 3.1415926f / 4.0f; // 45 deg
 
     float SnapToSubgrid(float value)
     {
@@ -46,14 +47,37 @@ namespace
         }
         return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
     }
+
+    bool IsShiftModifierActive(uint32_t modifiers)
+    {
+        if ((modifiers & kShiftModifierMask) != 0) {
+            return true;
+        }
+        return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    }
+
+    float NormalizeRadians(float angle)
+    {
+        constexpr float kPi = 3.1415926f;
+        constexpr float kTwoPi = 6.2831852f;
+        while (angle > kPi) {
+            angle -= kTwoPi;
+        }
+        while (angle < -kPi) {
+            angle += kTwoPi;
+        }
+        return angle;
+    }
 }
 
 RoadDecalInputControl::RoadDecalInputControl()
     : cSC4BaseViewInputControl(kRoadDecalControlID)
     , isActive_(false)
     , isDrawing_(false)
+    , hasGridPreviewPoint_(false)
     , currentStroke_({})
     , lastSamplePoint_({})
+    , lastGridPreviewPoint_({})
     , markupType_(RoadMarkupType::SolidWhiteLine)
     , placementMode_(PlacementMode::Freehand)
     , width_(0.15f)
@@ -63,6 +87,7 @@ RoadDecalInputControl::RoadDecalInputControl()
     , dashLength_(3.0f)
     , gapLength_(9.0f)
     , autoAlign_(true)
+    , color_(GetRoadMarkupProperties(RoadMarkupType::SolidWhiteLine).defaultColor)
     , onCancel_()
 {
 }
@@ -84,6 +109,9 @@ bool RoadDecalInputControl::Init()
 bool RoadDecalInputControl::Shutdown()
 {
     CancelStroke_();
+    const RoadDecalPoint zero{0.0f, 0.0f, 0.0f};
+    SetRoadDecalGridPreview(false, zero);
+    hasGridPreviewPoint_ = false;
     RequestFullRedraw_();
     return cSC4BaseViewInputControl::Shutdown();
 }
@@ -102,6 +130,9 @@ void RoadDecalInputControl::Deactivate()
 {
     isActive_ = false;
     CancelStroke_();
+    const RoadDecalPoint zero{0.0f, 0.0f, 0.0f};
+    SetRoadDecalGridPreview(false, zero);
+    hasGridPreviewPoint_ = false;
     cSC4BaseViewInputControl::Deactivate();
 }
 
@@ -119,10 +150,16 @@ bool RoadDecalInputControl::OnMouseDownL(int32_t x, int32_t z, uint32_t modifier
 
 bool RoadDecalInputControl::OnMouseMove(int32_t x, int32_t z, uint32_t)
 {
-    if (!isActive_ || !isDrawing_) {
+    if (!isActive_) {
         return false;
     }
-    UpdatePreviewFromScreen_(x, z);
+
+    UpdateGridPreviewFromScreen_(x, z);
+    if (isDrawing_) {
+        UpdatePreviewFromScreen_(x, z);
+    } else {
+        UpdateHoverPreviewFromScreen_(x, z);
+    }
     return true;
 }
 
@@ -152,6 +189,9 @@ bool RoadDecalInputControl::OnMouseDownR(int32_t, int32_t, uint32_t)
 
 bool RoadDecalInputControl::OnMouseExit()
 {
+    const RoadDecalPoint zero{0.0f, 0.0f, 0.0f};
+    SetRoadDecalGridPreview(false, zero);
+    hasGridPreviewPoint_ = false;
     ClearPreview_();
     RequestFullRedraw_();
     return false;
@@ -188,6 +228,20 @@ bool RoadDecalInputControl::OnKeyDown(int32_t vkCode, uint32_t modifiers)
 
     if (vkCode == VK_RETURN && isDrawing_) {
         return EndStroke_(true);
+    }
+
+    if (vkCode == 'R') {
+        const bool reverse = IsShiftModifierActive(modifiers);
+        rotation_ = NormalizeRadians(rotation_ + (reverse ? -kRotationStep : kRotationStep));
+        if (onRotationChanged_) {
+            onRotationChanged_(rotation_);
+        }
+        if (isDrawing_) {
+            currentStroke_.rotation = rotation_;
+            RefreshActiveStroke_();
+        }
+        RequestFullRedraw_();
+        return true;
     }
 
     return false;
@@ -234,6 +288,16 @@ void RoadDecalInputControl::SetAutoAlign(bool enabled)
     autoAlign_ = enabled;
 }
 
+void RoadDecalInputControl::SetColor(uint32_t color)
+{
+    color_ = color;
+}
+
+void RoadDecalInputControl::SetOnRotationChanged(std::function<void(float)> onRotationChanged)
+{
+    onRotationChanged_ = std::move(onRotationChanged);
+}
+
 void RoadDecalInputControl::SetOnCancel(std::function<void()> onCancel)
 {
     onCancel_ = std::move(onCancel);
@@ -276,7 +340,7 @@ bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ, uint3
     currentStroke_.gapLength = gapLength_;
     currentStroke_.visible = true;
     currentStroke_.opacity = 1.0f;
-    currentStroke_.color = GetRoadMarkupProperties(markupType_).defaultColor;
+    currentStroke_.color = color_;
     currentStroke_.points.push_back(p);
     lastSamplePoint_ = p;
     isDrawing_ = true;
@@ -393,15 +457,79 @@ void RoadDecalInputControl::UpdatePreviewFromScreen_(int32_t screenX, int32_t sc
             preview.points[1] = p;
         }
     } else {
-        if (preview.points.size() == 1) {
+        // Freehand preview should extend from the last committed click to cursor.
+        // Never overwrite the last committed point, or the path appears to "invert".
+        if (preview.points.size() >= 1) {
             preview.points.push_back(p);
-        } else {
-            preview.points.back() = p;
         }
     }
 
     SetRoadDecalPreviewSegment(true, preview);
     RequestFullRedraw_();
+}
+
+void RoadDecalInputControl::UpdateGridPreviewFromScreen_(int32_t screenX, int32_t screenZ)
+{
+    RoadDecalPoint p{};
+    if (!PickWorld_(screenX, screenZ, p)) {
+        const RoadDecalPoint zero{0.0f, 0.0f, 0.0f};
+        SetRoadDecalGridPreview(false, zero);
+        hasGridPreviewPoint_ = false;
+        return;
+    }
+
+    if (hasGridPreviewPoint_ &&
+        std::fabs(lastGridPreviewPoint_.x - p.x) < 0.01f &&
+        std::fabs(lastGridPreviewPoint_.z - p.z) < 0.01f) {
+        return;
+    }
+
+    lastGridPreviewPoint_ = p;
+    hasGridPreviewPoint_ = true;
+    SetRoadDecalGridPreview(true, p);
+}
+
+void RoadDecalInputControl::UpdateHoverPreviewFromScreen_(int32_t screenX, int32_t screenZ)
+{
+    if (placementMode_ == PlacementMode::Freehand) {
+        ClearPreview_();
+        return;
+    }
+
+    RoadDecalPoint p{};
+    if (!PickWorld_(screenX, screenZ, p)) {
+        ClearPreview_();
+        return;
+    }
+
+    RoadMarkupStroke preview{};
+    preview.type = markupType_;
+    preview.width = width_;
+    preview.length = length_;
+    preview.rotation = rotation_;
+    preview.dashed = dashed_;
+    preview.dashLength = dashLength_;
+    preview.gapLength = gapLength_;
+    preview.visible = true;
+    preview.opacity = 0.7f;
+    preview.color = color_;
+
+    const auto category = GetMarkupCategory(markupType_);
+    if (placementMode_ == PlacementMode::SingleClick ||
+        category == RoadMarkupCategory::DirectionalArrow ||
+        category == RoadMarkupCategory::ZoneMarking ||
+        category == RoadMarkupCategory::TextLabel) {
+        preview.points.push_back(p);
+        SetRoadDecalPreviewSegment(true, preview);
+        return;
+    }
+
+    // For line/two-point modes, preview a tiny starter segment around cursor.
+    RoadDecalPoint p2 = p;
+    p2.x += kSnapSubgridMeters;
+    preview.points.push_back(p);
+    preview.points.push_back(p2);
+    SetRoadDecalPreviewSegment(true, preview);
 }
 
 void RoadDecalInputControl::ClearPreview_()

@@ -1,3 +1,4 @@
+// ReSharper disable CppDFAConstantConditions
 #define NOMINMAX
 
 #include "RoadDecalData.hpp"
@@ -42,6 +43,10 @@ namespace
     constexpr uint32_t kRoadDecalZBias = 1;
     constexpr float kMinLen = 1.0e-4f;
     constexpr float kDoubleYellowSpacing = 0.10f;
+    constexpr float kTileSize = 16.0f;
+    constexpr float kMinorGridSize = 2.0f;
+    constexpr float kGridLineWidth = 0.10f;
+    constexpr uint32_t kGridColor = 0x30FFFFFF;
     constexpr uint32_t kMarkupFileMagic = 0x4B4D4452; // RDMK
     constexpr uint32_t kMarkupFileVersion = 1;
 
@@ -181,32 +186,33 @@ namespace
     std::vector<RoadDecalVertex> gRoadDecalVertices;
     std::vector<RoadDecalVertex> gRoadDecalActiveVertices;
     std::vector<RoadDecalVertex> gRoadDecalPreviewVertices;
+    std::vector<RoadDecalVertex> gRoadDecalGridVertices;
 
     constexpr std::array<RoadMarkupProperties, 25> kMarkupProps = {{
-        {RoadMarkupType::SolidWhiteLine, RoadMarkupCategory::LaneDivider, "Solid White", "Continuous white lane divider.", 0.15f, 0.0f, 0xE0FFFFFF, false, false},
-        {RoadMarkupType::DashedWhiteLine, RoadMarkupCategory::LaneDivider, "Dashed White", "Dashed white lane divider.", 0.15f, 0.0f, 0xE0FFFFFF, true, false},
-        {RoadMarkupType::SolidYellowLine, RoadMarkupCategory::LaneDivider, "Solid Yellow", "Continuous yellow centerline.", 0.15f, 0.0f, 0xE0FFD700, false, false},
-        {RoadMarkupType::DashedYellowLine, RoadMarkupCategory::LaneDivider, "Dashed Yellow", "Dashed yellow centerline.", 0.15f, 0.0f, 0xE0FFD700, true, false},
-        {RoadMarkupType::DoubleSolidYellow, RoadMarkupCategory::LaneDivider, "Double Yellow", "Double solid yellow centerline.", 0.15f, 0.0f, 0xE0FFD700, false, true},
-        {RoadMarkupType::SolidWhiteEdgeLine, RoadMarkupCategory::LaneDivider, "Edge Line", "Solid white edge line.", 0.15f, 0.0f, 0xE0FFFFFF, false, true},
+        {RoadMarkupType::SolidWhiteLine, RoadMarkupCategory::LaneDivider, "Solid White", "Continuous white lane divider.", 0.75f, 0.0f, 0xE0FFFFAA, false, false},
+        {RoadMarkupType::DashedWhiteLine, RoadMarkupCategory::LaneDivider, "Dashed White", "Dashed white lane divider.", 0.75f, 0.0f, 0xE0FFFFAA, true, false},
+        {RoadMarkupType::SolidYellowLine, RoadMarkupCategory::LaneDivider, "Solid Yellow", "Continuous yellow centerline.", 0.75f, 0.0f, 0xE0FFD700, false, false},
+        {RoadMarkupType::DashedYellowLine, RoadMarkupCategory::LaneDivider, "Dashed Yellow", "Dashed yellow centerline.", 0.75f, 0.0f, 0xE0FFD700, true, false},
+        {RoadMarkupType::DoubleSolidYellow, RoadMarkupCategory::LaneDivider, "Double Yellow", "Double solid yellow centerline.", 0.75f, 0.0f, 0xE0FFD700, false, true},
+        {RoadMarkupType::SolidWhiteEdgeLine, RoadMarkupCategory::LaneDivider, "Edge Line", "Solid white edge line.", 0.325f, 0.0f, 0xE0FFFFAA, false, true},
 
-        {RoadMarkupType::ArrowStraight, RoadMarkupCategory::DirectionalArrow, "Straight Arrow", "Straight lane arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ArrowLeft, RoadMarkupCategory::DirectionalArrow, "Left Arrow", "Left turn arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ArrowRight, RoadMarkupCategory::DirectionalArrow, "Right Arrow", "Right turn arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ArrowLeftRight, RoadMarkupCategory::DirectionalArrow, "Left/Right Arrow", "Left-right arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ArrowStraightLeft, RoadMarkupCategory::DirectionalArrow, "Straight+Left", "Straight-left arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ArrowStraightRight, RoadMarkupCategory::DirectionalArrow, "Straight+Right", "Straight-right arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ArrowUTurn, RoadMarkupCategory::DirectionalArrow, "U-Turn Arrow", "U-turn arrow.", 1.20f, 3.00f, 0xE0FFFFFF, false, true},
+        {RoadMarkupType::ArrowStraight, RoadMarkupCategory::DirectionalArrow, "Straight Arrow", "Straight lane arrow.", 1.20f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ArrowLeft, RoadMarkupCategory::DirectionalArrow, "Left Arrow", "Left turn arrow.", 1.20f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ArrowRight, RoadMarkupCategory::DirectionalArrow, "Right Arrow", "Right turn arrow.", 1.20f, 3.00f, 0xE0FFFAA, false, true},
+        {RoadMarkupType::ArrowLeftRight, RoadMarkupCategory::DirectionalArrow, "Left/Right Arrow", "Left-right arrow.", 1.20f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ArrowStraightLeft, RoadMarkupCategory::DirectionalArrow, "Straight+Left", "Straight-left arrow.", 1.20f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ArrowStraightRight, RoadMarkupCategory::DirectionalArrow, "Straight+Right", "Straight-right arrow.", 1.20f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ArrowUTurn, RoadMarkupCategory::DirectionalArrow, "U-Turn Arrow", "U-turn arrow.", 1.20f, 3.00f, 0xE0FFFFAA, false, true},
 
-        {RoadMarkupType::ZebraCrosswalk, RoadMarkupCategory::Crossing, "Zebra Crosswalk", "Parallel zebra stripes.", 0.50f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::LadderCrosswalk, RoadMarkupCategory::Crossing, "Ladder Crosswalk", "Zebra with side rails.", 0.50f, 3.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ContinentalCrosswalk, RoadMarkupCategory::Crossing, "Continental", "Thicker stripe crossing.", 0.80f, 3.00f, 0xE0FFFFFF, false, true},
+        {RoadMarkupType::ZebraCrosswalk, RoadMarkupCategory::Crossing, "Zebra Crosswalk", "Parallel zebra stripes.", 0.50f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::LadderCrosswalk, RoadMarkupCategory::Crossing, "Ladder Crosswalk", "Zebra with side rails.", 0.50f, 3.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ContinentalCrosswalk, RoadMarkupCategory::Crossing, "Continental", "Thicker stripe crossing.", 0.80f, 3.00f, 0xE0FFFFAA, false, true},
         {RoadMarkupType::StopBar, RoadMarkupCategory::Crossing, "Stop Bar", "Stop line bar.", 0.40f, 0.00f, 0xE0FFFFFF, false, true},
 
-        {RoadMarkupType::YieldTriangle, RoadMarkupCategory::ZoneMarking, "Yield Triangle", "Yield marker.", 0.15f, 1.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::ParkingSpace, RoadMarkupCategory::ZoneMarking, "Parking Space", "Parking outline marker.", 0.15f, 5.00f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::BikeSymbol, RoadMarkupCategory::ZoneMarking, "Bike Symbol", "Bike lane symbol.", 0.20f, 2.50f, 0xE0FFFFFF, false, true},
-        {RoadMarkupType::BusLane, RoadMarkupCategory::ZoneMarking, "Bus Lane", "Bus lane marker.", 0.20f, 6.00f, 0xE0FFFFFF, false, true},
+        {RoadMarkupType::YieldTriangle, RoadMarkupCategory::ZoneMarking, "Yield Triangle", "Yield marker.", 0.15f, 1.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::ParkingSpace, RoadMarkupCategory::ZoneMarking, "Parking Space", "Parking outline marker.", 0.15f, 5.00f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::BikeSymbol, RoadMarkupCategory::ZoneMarking, "Bike Symbol", "Bike lane symbol.", 0.20f, 2.50f, 0xE0FFFFAA, false, true},
+        {RoadMarkupType::BusLane, RoadMarkupCategory::ZoneMarking, "Bus Lane", "Bus lane marker.", 0.20f, 6.00f, 0xE0FFFFAA, false, true},
 
         {RoadMarkupType::TextStop, RoadMarkupCategory::TextLabel, "STOP", "Text marker phase 2.", 0.20f, 3.00f, 0xE0FFFFFF, false, true},
         {RoadMarkupType::TextSlow, RoadMarkupCategory::TextLabel, "SLOW", "Text marker phase 2.", 0.20f, 3.00f, 0xE0FFFFFF, false, true},
@@ -288,6 +294,106 @@ namespace
         return true;
     }
 
+    float Distance3(const RoadDecalPoint& a, const RoadDecalPoint& b)
+    {
+        const float dx = b.x - a.x;
+        const float dy = b.y - a.y;
+        const float dz = b.z - a.z;
+        return std::sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    RoadDecalPoint LerpByT(const RoadDecalPoint& a, const RoadDecalPoint& b, float ta, float tb, float t)
+    {
+        const float denom = tb - ta;
+        if (std::fabs(denom) < 1.0e-5f) {
+            return b;
+        }
+        const float wa = (tb - t) / denom;
+        const float wb = (t - ta) / denom;
+        return {
+            wa * a.x + wb * b.x,
+            wa * a.y + wb * b.y,
+            wa * a.z + wb * b.z,
+            false
+        };
+    }
+
+    RoadDecalPoint CentripetalCatmullRomPoint(const RoadDecalPoint& p0,
+                                              const RoadDecalPoint& p1,
+                                              const RoadDecalPoint& p2,
+                                              const RoadDecalPoint& p3,
+                                              float u)
+    {
+        constexpr float kAlpha = 0.5f;
+        const float t0 = 0.0f;
+        const float t1 = t0 + std::pow((std::max)(Distance3(p0, p1), 1.0e-4f), kAlpha);
+        const float t2 = t1 + std::pow((std::max)(Distance3(p1, p2), 1.0e-4f), kAlpha);
+        const float t3 = t2 + std::pow((std::max)(Distance3(p2, p3), 1.0e-4f), kAlpha);
+        const float t = t1 + (t2 - t1) * u;
+
+        const auto a1 = LerpByT(p0, p1, t0, t1, t);
+        const auto a2 = LerpByT(p1, p2, t1, t2, t);
+        const auto a3 = LerpByT(p2, p3, t2, t3, t);
+        const auto b1 = LerpByT(a1, a2, t0, t2, t);
+        const auto b2 = LerpByT(a2, a3, t1, t3, t);
+        return LerpByT(b1, b2, t1, t2, t);
+    }
+
+    RoadDecalPoint ClampPointToSegmentBounds(const RoadDecalPoint& p, const RoadDecalPoint& a, const RoadDecalPoint& b)
+    {
+        const float minX = (std::min)(a.x, b.x);
+        const float maxX = (std::max)(a.x, b.x);
+        const float minZ = (std::min)(a.z, b.z);
+        const float maxZ = (std::max)(a.z, b.z);
+
+        RoadDecalPoint out = p;
+        out.x = std::clamp(out.x, minX, maxX);
+        out.z = std::clamp(out.z, minZ, maxZ);
+        out.hardCorner = false;
+        return out;
+    }
+
+    void BuildSmoothedPolyline(const std::vector<RoadDecalPoint>& points, std::vector<RoadDecalPoint>& outPoints)
+    {
+        outPoints.clear();
+        if (points.size() < 3) {
+            outPoints = points;
+            return;
+        }
+
+        outPoints.reserve(points.size() * 4);
+        outPoints.push_back(points.front());
+
+        for (size_t i = 0; i + 1 < points.size(); ++i) {
+            const auto& p1 = points[i];
+            const auto& p2 = points[i + 1];
+
+            const bool forceLinear = p1.hardCorner || p2.hardCorner;
+            if (forceLinear) {
+                outPoints.push_back(p2);
+                continue;
+            }
+
+            const auto& p0Raw = (i == 0) ? points[i] : points[i - 1];
+            const auto& p3Raw = (i + 2 < points.size()) ? points[i + 2] : points[i + 1];
+            const bool p0Hard = (i > 0) && points[i - 1].hardCorner;
+            const bool p3Hard = (i + 2 < points.size()) && points[i + 2].hardCorner;
+            const auto& p0 = p0Hard ? p1 : p0Raw;
+            const auto& p3 = p3Hard ? p2 : p3Raw;
+
+            const float dx = p2.x - p1.x;
+            const float dz = p2.z - p1.z;
+            const float segmentLength = std::sqrt(dx * dx + dz * dz);
+            const int steps = std::clamp(static_cast<int>(std::ceil(segmentLength / 1.0f)), 3, 12);
+
+            for (int step = 1; step <= steps; ++step) {
+                const float t = static_cast<float>(step) / static_cast<float>(steps);
+                const RoadDecalPoint sample = CentripetalCatmullRomPoint(p0, p1, p2, p3, t);
+                outPoints.push_back(ClampPointToSegmentBounds(sample, p1, p2));
+            }
+        }
+    }
+
     void EmitTriangle(const RoadDecalPoint& a, const RoadDecalPoint& b, const RoadDecalPoint& c, DWORD color, std::vector<RoadDecalVertex>& outVerts)
     {
         outVerts.push_back({a.x, a.y, a.z, color});
@@ -299,6 +405,28 @@ namespace
     {
         EmitTriangle(a, b, c, color, outVerts);
         EmitTriangle(a, c, d, color, outVerts);
+    }
+
+    void EmitThickSegmentNoConform(const RoadDecalPoint& a,
+                                   const RoadDecalPoint& b,
+                                   float width,
+                                   DWORD color,
+                                   std::vector<RoadDecalVertex>& outVerts)
+    {
+        float tx = 0.0f;
+        float tz = 0.0f;
+        float len = 0.0f;
+        if (!GetDirectionXZ(a, b, tx, tz, len) || width <= 0.0f) {
+            return;
+        }
+        const float halfWidth = width * 0.5f;
+        const float nx = -tz;
+        const float nz = tx;
+        const RoadDecalPoint aL{a.x - nx * halfWidth, a.y, a.z - nz * halfWidth, false};
+        const RoadDecalPoint aR{a.x + nx * halfWidth, a.y, a.z + nz * halfWidth, false};
+        const RoadDecalPoint bL{b.x - nx * halfWidth, b.y, b.z - nz * halfWidth, false};
+        const RoadDecalPoint bR{b.x + nx * halfWidth, b.y, b.z + nz * halfWidth, false};
+        EmitQuad(aL, bL, bR, aR, color, outVerts);
     }
 
     RoadDecalPoint LocalPoint(const RoadDecalPoint& center,
@@ -329,7 +457,11 @@ namespace
             return;
         }
 
-        auto path = points;
+        std::vector<RoadDecalPoint> path;
+        BuildSmoothedPolyline(points, path);
+        if (path.empty()) {
+            path = points;
+        }
         ConformPointsToTerrain(path);
 
         dashLength = std::max(0.05f, dashLength);
@@ -480,30 +612,79 @@ namespace
     {
         const auto& start = stroke.points[0];
         const auto& end = stroke.points[1];
-        float tx = 0.0f;
-        float tz = 0.0f;
+        float dragTx = 0.0f;
+        float dragTz = 0.0f;
         float length = 0.0f;
-        if (!GetDirectionXZ(start, end, tx, tz, length)) {
+        if (!GetDirectionXZ(start, end, dragTx, dragTz, length)) {
             return;
         }
-        const float nx = -tz;
-        const float nz = tx;
+        // Treat user drag length as curb-to-curb span.
+        // Stripe orientation follows stroke.rotation (auto-align writes drag direction;
+        // manual rotation works when auto-align is off).
+        float tx = std::cos(stroke.rotation);
+        float tz = std::sin(stroke.rotation);
+        if (std::fabs(tx) < 0.0001f && std::fabs(tz) < 0.0001f) {
+            tx = dragTx;
+            tz = dragTz;
+        }
+        const float perpX = -tz;
+        const float perpZ = tx;
+        // Keep dimensions decoupled:
+        // - drag length controls curb-to-curb span
+        // - stroke.length controls crossing depth (visual width along road)
+        const float span = length;
         const float depth = std::max(stripe, stroke.length);
         const float firstOffset = -0.5f * depth;
         const int stripes = std::max(1, static_cast<int>(std::floor((depth + gap) / (stripe + gap))));
+        const RoadDecalPoint center{
+            (start.x + end.x) * 0.5f,
+            (start.y + end.y) * 0.5f,
+            (start.z + end.z) * 0.5f,
+            false
+        };
 
         for (int i = 0; i < stripes; ++i) {
             const float offset = firstOffset + i * (stripe + gap) + stripe * 0.5f;
-            const RoadDecalPoint a{start.x + nx * offset, start.y, start.z + nz * offset, false};
-            const RoadDecalPoint b{end.x + nx * offset, end.y, end.z + nz * offset, false};
+            const RoadDecalPoint a{
+                center.x + perpX * offset - tx * (span * 0.5f),
+                center.y,
+                center.z + perpZ * offset - tz * (span * 0.5f),
+                false
+            };
+            const RoadDecalPoint b{
+                center.x + perpX * offset + tx * (span * 0.5f),
+                center.y,
+                center.z + perpZ * offset + tz * (span * 0.5f),
+                false
+            };
             BuildLine({a, b}, stripe, color, false, 0.0f, 0.0f, outVerts);
         }
 
         if (ladderRails) {
-            const RoadDecalPoint l0{start.x + nx * firstOffset, start.y, start.z + nz * firstOffset, false};
-            const RoadDecalPoint l1{start.x + nx * (firstOffset + depth), start.y, start.z + nz * (firstOffset + depth), false};
-            const RoadDecalPoint r0{end.x + nx * firstOffset, end.y, end.z + nz * firstOffset, false};
-            const RoadDecalPoint r1{end.x + nx * (firstOffset + depth), end.y, end.z + nz * (firstOffset + depth), false};
+            const RoadDecalPoint l0{
+                center.x + perpX * firstOffset - tx * (span * 0.5f),
+                center.y,
+                center.z + perpZ * firstOffset - tz * (span * 0.5f),
+                false
+            };
+            const RoadDecalPoint l1{
+                center.x + perpX * firstOffset + tx * (span * 0.5f),
+                center.y,
+                center.z + perpZ * firstOffset + tz * (span * 0.5f),
+                false
+            };
+            const RoadDecalPoint r0{
+                center.x + perpX * (firstOffset + depth) - tx * (span * 0.5f),
+                center.y,
+                center.z + perpZ * (firstOffset + depth) - tz * (span * 0.5f),
+                false
+            };
+            const RoadDecalPoint r1{
+                center.x + perpX * (firstOffset + depth) + tx * (span * 0.5f),
+                center.y,
+                center.z + perpZ * (firstOffset + depth) + tz * (span * 0.5f),
+                false
+            };
             BuildLine({l0, l1}, stripe * 0.5f, color, false, 0.0f, 0.0f, outVerts);
             BuildLine({r0, r1}, stripe * 0.5f, color, false, 0.0f, 0.0f, outVerts);
         }
@@ -660,11 +841,24 @@ void RebuildRoadDecalGeometry()
 {
     EnsureDefaultRoadMarkupLayer();
     gRoadDecalVertices.clear();
+    std::vector<const RoadMarkupLayer*> orderedLayers;
+    orderedLayers.reserve(gRoadMarkupLayers.size());
     for (const auto& layer : gRoadMarkupLayers) {
-        if (!layer.visible) {
+        orderedLayers.push_back(&layer);
+    }
+    std::stable_sort(orderedLayers.begin(), orderedLayers.end(),
+                     [](const RoadMarkupLayer* a, const RoadMarkupLayer* b) {
+                         return a->renderOrder < b->renderOrder;
+                     });
+
+    for (const auto* layer : orderedLayers) {
+        if (!layer) {
             continue;
         }
-        for (const auto& stroke : layer.strokes) {
+        if (!layer->visible) {
+            continue;
+        }
+        for (const auto& stroke : layer->strokes) {
             BuildStrokeVertices(stroke, gRoadDecalVertices);
         }
     }
@@ -672,7 +866,10 @@ void RebuildRoadDecalGeometry()
 
 void DrawRoadDecals()
 {
-    if (gRoadDecalVertices.empty() && gRoadDecalActiveVertices.empty() && gRoadDecalPreviewVertices.empty()) {
+    if (gRoadDecalVertices.empty() &&
+        gRoadDecalActiveVertices.empty() &&
+        gRoadDecalPreviewVertices.empty() &&
+        gRoadDecalGridVertices.empty()) {
         return;
     }
 
@@ -722,6 +919,7 @@ void DrawRoadDecals()
         DrawVertexBuffer(device, gRoadDecalVertices);
         DrawVertexBuffer(device, gRoadDecalActiveVertices);
         DrawVertexBuffer(device, gRoadDecalPreviewVertices);
+        DrawVertexBuffer(device, gRoadDecalGridVertices);
     }
 
     device->Release();
@@ -740,6 +938,63 @@ void SetRoadDecalPreviewSegment(bool enabled, const RoadMarkupStroke& stroke)
     gRoadDecalPreviewVertices.clear();
     if (enabled) {
         BuildStrokeVertices(stroke, gRoadDecalPreviewVertices);
+    }
+}
+
+void SetRoadDecalGridPreview(bool enabled, const RoadDecalPoint& centerPoint)
+{
+    gRoadDecalGridVertices.clear();
+    if (!enabled) {
+        return;
+    }
+
+    const float tileX = std::floor(centerPoint.x / kTileSize) * kTileSize;
+    const float tileZ = std::floor(centerPoint.z / kTileSize) * kTileSize;
+
+    const float minX = tileX - kTileSize;
+    const float maxX = tileX + (2.0f * kTileSize);
+    const float minZ = tileZ - kTileSize;
+    const float maxZ = tileZ + (2.0f * kTileSize);
+
+    auto* terrain = GetActiveTerrain();
+    if (!terrain) {
+        return;
+    }
+
+    const int xCount = static_cast<int>(std::round((maxX - minX) / kMinorGridSize)) + 1;
+    const int zCount = static_cast<int>(std::round((maxZ - minZ) / kMinorGridSize)) + 1;
+    if (xCount < 2 || zCount < 2) {
+        return;
+    }
+
+    std::vector<RoadDecalPoint> gridPoints(static_cast<size_t>(xCount * zCount));
+    auto at = [&](int xi, int zi) -> RoadDecalPoint& {
+        return gridPoints[static_cast<size_t>(zi * xCount + xi)];
+    };
+
+    for (int zi = 0; zi < zCount; ++zi) {
+        const float z = minZ + static_cast<float>(zi) * kMinorGridSize;
+        for (int xi = 0; xi < xCount; ++xi) {
+            const float x = minX + static_cast<float>(xi) * kMinorGridSize;
+            auto& p = at(xi, zi);
+            p.x = x;
+            p.z = z;
+            p.y = SampleTerrainHeight(terrain, x, z) + kDecalTerrainOffset;
+            p.hardCorner = false;
+        }
+    }
+
+    gRoadDecalGridVertices.reserve(static_cast<size_t>((xCount - 1) * zCount + (zCount - 1) * xCount) * 6);
+
+    for (int zi = 0; zi < zCount; ++zi) {
+        for (int xi = 0; xi + 1 < xCount; ++xi) {
+            EmitThickSegmentNoConform(at(xi, zi), at(xi + 1, zi), kGridLineWidth, kGridColor, gRoadDecalGridVertices);
+        }
+    }
+    for (int xi = 0; xi < xCount; ++xi) {
+        for (int zi = 0; zi + 1 < zCount; ++zi) {
+            EmitThickSegmentNoConform(at(xi, zi), at(xi, zi + 1), kGridLineWidth, kGridColor, gRoadDecalGridVertices);
+        }
     }
 }
 

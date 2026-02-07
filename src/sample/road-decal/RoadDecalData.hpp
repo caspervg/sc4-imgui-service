@@ -130,3 +130,6 @@ void SetRoadDecalPreviewSegment(bool enabled,
 
 bool SaveMarkupsToFile(const char* filepath);
 bool LoadMarkupsFromFile(const char* filepath);
+
+// Shows a subtle minor-grid preview centered on the hovered tile (+ adjacent tiles).
+void SetRoadDecalGridPreview(bool enabled, const RoadDecalPoint& centerPoint);
