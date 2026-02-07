@@ -186,6 +186,29 @@ namespace
         return "Unknown";
     }
 
+    void HandlePanelRotationHotkeys()
+    {
+        if (!gRoadDecalToolEnabled.load(std::memory_order_relaxed)) {
+            return;
+        }
+        const ImGuiIO& io = ImGui::GetIO();
+        if (io.WantTextInput) {
+            return;
+        }
+        if (!ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+            return;
+        }
+
+        gRotationDeg += io.KeyShift ? -45.0f : 45.0f;
+        while (gRotationDeg > 180.0f) {
+            gRotationDeg -= 360.0f;
+        }
+        while (gRotationDeg < -180.0f) {
+            gRotationDeg += 360.0f;
+        }
+        SyncToolSettings();
+    }
+
     class RoadDecalPanel final : public ImGuiPanel
     {
     public:
@@ -193,6 +216,7 @@ namespace
         {
             EnsureDefaultRoadMarkupLayer();
             ImGui::Begin("Road Markings");
+            HandlePanelRotationHotkeys();
 
             bool toolEnabled = gRoadDecalToolEnabled.load(std::memory_order_relaxed);
             if (ImGui::Checkbox("Enable Tool", &toolEnabled)) {

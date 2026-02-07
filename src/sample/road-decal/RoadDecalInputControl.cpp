@@ -75,6 +75,9 @@ RoadDecalInputControl::RoadDecalInputControl()
     , isActive_(false)
     , isDrawing_(false)
     , hasGridPreviewPoint_(false)
+    , hasMousePosition_(false)
+    , lastMouseX_(0)
+    , lastMouseZ_(0)
     , currentStroke_({})
     , lastSamplePoint_({})
     , lastGridPreviewPoint_({})
@@ -154,6 +157,10 @@ bool RoadDecalInputControl::OnMouseMove(int32_t x, int32_t z, uint32_t)
         return false;
     }
 
+    hasMousePosition_ = true;
+    lastMouseX_ = x;
+    lastMouseZ_ = z;
+
     UpdateGridPreviewFromScreen_(x, z);
     if (isDrawing_) {
         UpdatePreviewFromScreen_(x, z);
@@ -192,6 +199,7 @@ bool RoadDecalInputControl::OnMouseExit()
     const RoadDecalPoint zero{0.0f, 0.0f, 0.0f};
     SetRoadDecalGridPreview(false, zero);
     hasGridPreviewPoint_ = false;
+    hasMousePosition_ = false;
     ClearPreview_();
     RequestFullRedraw_();
     return false;
@@ -236,11 +244,7 @@ bool RoadDecalInputControl::OnKeyDown(int32_t vkCode, uint32_t modifiers)
         if (onRotationChanged_) {
             onRotationChanged_(rotation_);
         }
-        if (isDrawing_) {
-            currentStroke_.rotation = rotation_;
-            RefreshActiveStroke_();
-        }
-        RequestFullRedraw_();
+        RefreshRotationPreview_();
         return true;
     }
 
@@ -269,7 +273,8 @@ void RoadDecalInputControl::SetLength(float length)
 
 void RoadDecalInputControl::SetRotation(float radians)
 {
-    rotation_ = radians;
+    rotation_ = NormalizeRadians(radians);
+    RefreshRotationPreview_();
 }
 
 void RoadDecalInputControl::SetDashed(bool dashed)
@@ -541,6 +546,26 @@ void RoadDecalInputControl::ClearPreview_()
 void RoadDecalInputControl::RefreshActiveStroke_()
 {
     SetRoadDecalActiveStroke(&currentStroke_);
+}
+
+void RoadDecalInputControl::RefreshRotationPreview_()
+{
+    if (isDrawing_) {
+        currentStroke_.rotation = rotation_;
+        RefreshActiveStroke_();
+        if (hasMousePosition_) {
+            UpdatePreviewFromScreen_(lastMouseX_, lastMouseZ_);
+        } else {
+            RequestFullRedraw_();
+        }
+        return;
+    }
+
+    if (hasMousePosition_) {
+        UpdateHoverPreviewFromScreen_(lastMouseX_, lastMouseZ_);
+    } else {
+        RequestFullRedraw_();
+    }
 }
 
 void RoadDecalInputControl::RequestFullRedraw_()

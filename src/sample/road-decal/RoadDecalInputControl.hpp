@@ -50,6 +50,7 @@ private:
     void UpdateHoverPreviewFromScreen_(int32_t screenX, int32_t screenZ);
     void ClearPreview_();
     void RefreshActiveStroke_();
+    void RefreshRotationPreview_();
     void RequestFullRedraw_();
     void UndoLastStroke_();
     void ClearAllStrokes_();
@@ -58,6 +59,9 @@ private:
     bool isActive_;
     bool isDrawing_;
     bool hasGridPreviewPoint_;
+    bool hasMousePosition_;
+    int32_t lastMouseX_;
+    int32_t lastMouseZ_;
 
     RoadMarkupStroke currentStroke_;
     RoadDecalPoint lastSamplePoint_;
