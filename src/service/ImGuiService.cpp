@@ -755,24 +755,18 @@ void* ImGuiService::GetTextureID(const ImGuiTextureHandle handle) {
 
 void ImGuiService::ReleaseTexture(ImGuiTextureHandle handle) {
     std::lock_guard lock(texturesMutex_);
-    return;
 
-    auto it = textures_.find(handle.id);
-
-    if (it == textures_.end()) {
-        return;
-    }
-
-    if (it->second.surface) {
-        it->second.surface->Release();
-        it->second.surface = nullptr;
+    if (textures_.contains(handle.id)) {
+        auto tex = textures_[handle.id];
+        tex.surface->Release();
+        tex.surface = nullptr;
+        textures_.erase(handle.id);
     }
 
     LOG_INFO("ImGuiService::ReleaseTexture: released texture (id={})", handle.id);
-    textures_.erase(it);
 }
 
-bool ImGuiService::IsTextureValid(ImGuiTextureHandle handle) const {
+bool ImGuiService::IsTextureValid(const ImGuiTextureHandle handle) const {
     uint32_t currentGen = deviceGeneration_.load(std::memory_order_acquire);
     if (handle.generation != currentGen) {
         return false;
