@@ -1,4 +1,5 @@
 #include "ImGuiService.h"
+#include "DrawService.h"
 #include "S3DCameraService.h"
 
 #include "cIGZFrameWork.h"
@@ -46,6 +47,14 @@ public:
             LOG_WARN("CustomServicesDirector: S3DCameraService not registered (version check failed)");
         }
 
+        // Register draw service (641-gated inside Init)
+        if (drawService_.Init()) {
+            mpFrameWork->AddSystemService(&drawService_);
+            LOG_INFO("CustomServicesDirector: DrawService registered");
+        } else {
+            LOG_WARN("CustomServicesDirector: DrawService not registered (version check failed)");
+        }
+
         return true;
     }
 
@@ -56,17 +65,20 @@ public:
             mpFrameWork->RemoveFromTick(&imguiService_);
             mpFrameWork->RemoveSystemService(&imguiService_);
             mpFrameWork->RemoveSystemService(&cameraService_);
+            mpFrameWork->RemoveSystemService(&drawService_);
             mpFrameWork->RemoveHook(this);
         }
 
         imguiService_.Shutdown();
         cameraService_.Shutdown();
+        drawService_.Shutdown();
         return true;
     }
 
 private:
     ImGuiService imguiService_;
     S3DCameraService cameraService_;
+    DrawService drawService_;
 };
 
 static CustomServicesDirector sDirector;
