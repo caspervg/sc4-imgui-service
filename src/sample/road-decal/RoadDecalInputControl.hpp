@@ -27,9 +27,16 @@ public:
     bool OnMouseExit() override;
     bool OnKeyDown(int32_t vkCode, uint32_t modifiers) override;
 
-    void SetStyle(int styleId);
+    void SetMarkupType(RoadMarkupType type);
+    void SetPlacementMode(PlacementMode mode);
     void SetWidth(float width);
+    void SetLength(float length);
+    void SetRotation(float radians);
     void SetDashed(bool dashed);
+    void SetDashPattern(float dashLength, float gapLength);
+    void SetAutoAlign(bool enabled);
+    void SetColor(uint32_t color);
+    void SetOnRotationChanged(std::function<void(float)> onRotationChanged);
     void SetOnCancel(std::function<void()> onCancel);
 
 private:
@@ -39,8 +46,11 @@ private:
     void CancelStroke_();
     bool PickWorld_(int32_t screenX, int32_t screenZ, RoadDecalPoint& outPoint);
     void UpdatePreviewFromScreen_(int32_t screenX, int32_t screenZ);
+    void UpdateGridPreviewFromScreen_(int32_t screenX, int32_t screenZ);
+    void UpdateHoverPreviewFromScreen_(int32_t screenX, int32_t screenZ);
     void ClearPreview_();
     void RefreshActiveStroke_();
+    void RefreshRotationPreview_();
     void RequestFullRedraw_();
     void UndoLastStroke_();
     void ClearAllStrokes_();
@@ -48,12 +58,25 @@ private:
 private:
     bool isActive_;
     bool isDrawing_;
+    bool hasGridPreviewPoint_;
+    bool hasMousePosition_;
+    int32_t lastMouseX_;
+    int32_t lastMouseZ_;
 
-    RoadDecalStroke currentStroke_;
+    RoadMarkupStroke currentStroke_;
     RoadDecalPoint lastSamplePoint_;
-    int styleId_;
+    RoadDecalPoint lastGridPreviewPoint_;
+    RoadMarkupType markupType_;
+    PlacementMode placementMode_;
     float width_;
+    float length_;
+    float rotation_;
     bool dashed_;
+    float dashLength_;
+    float gapLength_;
+    bool autoAlign_;
+    uint32_t color_;
+    std::function<void(float)> onRotationChanged_;
 
     std::function<void()> onCancel_;
 };
