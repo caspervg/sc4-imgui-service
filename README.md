@@ -28,6 +28,40 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 - `SC4ImGuiSampleDemo.dll` (ImGui demo window)
 - `SC4ImGuiTextureSample.dll` (texture management example)
 
+## Provided Services
+
+`SC4CustomServices.dll` registers three services (currently gated for SimCity 4
+version `1.1.641`).
+
+### 1) ImGui service
+
+- Service ID / IID: `kImGuiServiceID`, `GZIID_cIGZImGuiService`
+  (`src/public/ImGuiServiceIds.h`)
+- Interface: `cIGZImGuiService` (`src/public/cIGZImGuiService.h`)
+- Provides panel registration, per-frame callbacks, font registration, DX7
+  access, and managed texture APIs for `ImGui::Image()`.
+- Examples: `SC4ImGuiSample.dll`, `SC4ImGuiSampleDemo.dll`,
+  `SC4ImGuiTextureSample.dll`, `SC4ImGuiSampleCity.dll`
+
+### 2) S3D camera service
+
+- Service ID / IID: `kS3DCameraServiceID`, `GZIID_cIGZS3DCameraService`
+  (`src/public/S3DCameraServiceIds.h`)
+- Interface: `cIGZS3DCameraService` (`src/public/cIGZS3DCameraService.h`)
+- Provides camera creation/wrapping, world/screen projection helpers, viewport
+  and transform operations.
+- Examples: `SC4WorldProjectionSample.dll`, `SC4S3DCameraDebugSample.dll`
+
+### 3) Draw service
+
+- Service ID / IID: `kDrawServiceID`, `GZIID_cIGZDrawService`
+  (`src/public/cIGZDrawService.h`)
+- Interface: `cIGZDrawService` (`src/public/cIGZDrawService.h`)
+- Provides draw-context wrapping, render-pass callbacks
+  (`PreStatic`...`PostDynamic`), and helpers for render state, mesh/model draw
+  calls, and primitive drawing.
+- Examples: `SC4DrawServiceSample.dll`, `SC4RoadDecalSample.dll`
+
 ## Usage
 
 - Link your DLL against `imgui.dll` and include `vendor/d3d7imgui/ImGui/imgui.h`.
@@ -36,6 +70,37 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 - Register a panel with `ImGuiPanelDesc` and render using `ImGui::*`.
 - The service owns the ImGui context; do not call `ImGui::CreateContext()` or
   `ImGui::DestroyContext()` in clients.
+
+## Render Callbacks
+
+Two callback models are available:
+
+- `cIGZImGuiService` panel callbacks (`on_init`, `on_update`, `on_render`,
+  `on_visible_changed`, `on_shutdown`, `on_unregister`, `on_device_lost`,
+  `on_device_restored`) for panel lifecycle and per-frame UI drawing.
+- `cIGZImGuiService::QueueRender(...)` for one-shot work on the next ImGui
+  frame. The optional cleanup callback runs after execution (or during
+  shutdown if still queued).
+- `cIGZDrawService::RegisterDrawPassCallback(...)` for renderer pass hooks.
+  Callback signature is `void(DrawServicePass pass, bool begin, void* userData)`.
+  The callback is invoked twice per pass: before the game pass (`begin=true`)
+  and after it (`begin=false`).
+
+Minimal draw-pass callback pattern:
+
+```cpp
+static void OnDrawPass(DrawServicePass pass, bool begin, void* userData) {
+    if (pass == DrawServicePass::Dynamic && begin) {
+        // Inject custom draw setup/work before Dynamic pass.
+    }
+}
+
+uint32_t token = 0;
+if (drawService->RegisterDrawPassCallback(DrawServicePass::Dynamic,
+                                          &OnDrawPass, myData, &token)) {
+    // Keep token and call UnregisterDrawPassCallback(token) during shutdown.
+}
+```
 
 ## Public API
 
