@@ -205,9 +205,11 @@ void DX7InterfaceHook::ShutdownImGui()
             }
         }
     }
-    ImGui_ImplDX7_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    if (ImGui::GetCurrentContext()) {
+        ImGui_ImplDX7_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
     s_FrameCallback.store(nullptr, std::memory_order_release);
     s_OriginalEndScene.store(nullptr, std::memory_order_release);
     s_HookedDevice.store(nullptr, std::memory_order_release);

@@ -34,7 +34,8 @@ void Logger::Initialize(const std::string& logName, const std::string& userDir) 
         }
         else {
             // Fallback to user's Documents folder where SC4 can find it
-            std::string userProfile = std::getenv("USERPROFILE") ? std::getenv("USERPROFILE") : "";
+            const char* userProfileEnv = std::getenv("USERPROFILE");
+            std::string userProfile = userProfileEnv ? userProfileEnv : "";
             if (!userProfile.empty()) {
                 logDir = std::filesystem::path(userProfile) / "Documents" / "SimCity 4";
             }

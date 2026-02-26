@@ -120,6 +120,10 @@ uint32_t ImGuiService::Release() {
 }
 
 bool ImGuiService::QueryInterface(uint32_t riid, void** ppvObj) {
+    if (!ppvObj) {
+        return false;
+    }
+
     if (riid == GZIID_cIGZImGuiService) {
         *ppvObj = static_cast<cIGZImGuiService*>(this);
         AddRef();
@@ -152,6 +156,8 @@ bool ImGuiService::Shutdown() {
     if (!initialized_) {
         return true;
     }
+
+    initialized_ = false;
 
     std::vector<ImGuiPanelDesc> panelsToShutdown;
     {
@@ -198,7 +204,6 @@ bool ImGuiService::Shutdown() {
     hookInstalled_ = false;
     deviceGeneration_.fetch_add(1, std::memory_order_release);
     SetServiceRunning(false);
-    initialized_ = false;
     return true;
 }
 
@@ -385,7 +390,7 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
 
     {
         std::lock_guard lock(panelsMutex_);
-        if (panels_.empty()) {
+        if (!initialized_ || panels_.empty()) {
             return;
         }
     }
@@ -443,20 +448,18 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
     }
 
     for (const auto& desc : panelsToRender) {
-        // Push the panel's font if specified
+        bool pushedFont = false;
         if (desc.fontId != 0) {
             if (auto* font = static_cast<ImFont*>(GetFont(desc.fontId))) {
-                ImGui::PushFont(font, 0.0f); // 0.0f preserves current font size
+                ImGui::PushFont(font, 0.0f);
+                pushedFont = true;
             }
         }
 
         desc.on_render(desc.data);
 
-        // Pop the font if we pushed one
-        if (desc.fontId != 0) {
-            if (auto* font = static_cast<ImFont*>(GetFont(desc.fontId))) {
-                ImGui::PopFont();
-            }
+        if (pushedFont) {
+            ImGui::PopFont();
         }
     }
 
@@ -625,7 +628,12 @@ bool ImGuiService::InstallWndProcHook_(HWND hwnd) {
 
 void ImGuiService::RemoveWndProcHook_() {
     if (hookInstalled_ && gameWindow_ && originalWndProc_) {
-        SetWindowLongPtrW(gameWindow_, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(originalWndProc_));
+        auto currentProc = reinterpret_cast<WNDPROC>(GetWindowLongPtrW(gameWindow_, GWLP_WNDPROC));
+        if (currentProc == &ImGuiService::WndProcHook) {
+            SetWindowLongPtrW(gameWindow_, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(originalWndProc_));
+        } else {
+            LOG_WARN("ImGuiService: WndProc was re-hooked by another module, skipping restoration to preserve chain");
+        }
     }
 
     hookInstalled_ = false;
@@ -700,6 +708,10 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     // Create managed texture entry
     ManagedTexture tex;
     tex.id = nextTextureId_++;
+    if (tex.id == 0) {
+        LOG_ERROR("ImGuiService::CreateTexture: texture ID space exhausted");
+        return ImGuiTextureHandle{0, 0};
+    }
     tex.width = desc.width;
     tex.height = desc.height;
     tex.creationGeneration = currentGen;
@@ -814,8 +826,13 @@ bool ImGuiService::IsTextureValid(const ImGuiTextureHandle handle) const {
 }
 
 bool ImGuiService::RegisterFont(uint32_t fontId, const char* filePath, float sizePixels) {
-    if (!filePath || sizePixels <= 0.0f) {
+    if (!filePath || filePath[0] == '\0' || sizePixels <= 0.0f) {
         LOG_ERROR("ImGuiService::RegisterFont: invalid arguments (fontId={}, size={})", fontId, sizePixels);
+        return false;
+    }
+
+    if (GetFileAttributesA(filePath) == INVALID_FILE_ATTRIBUTES) {
+        LOG_ERROR("ImGuiService::RegisterFont: file not found '{}'", filePath);
         return false;
     }
 

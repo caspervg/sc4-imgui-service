@@ -68,6 +68,10 @@ uint32_t DrawService::Release() {
 }
 
 bool DrawService::QueryInterface(const uint32_t riid, void** ppvObj) {
+    if (!ppvObj) {
+        return false;
+    }
+
     if (riid == GZIID_cIGZDrawService) {
         *ppvObj = static_cast<cIGZDrawService*>(this);
         AddRef();
@@ -152,7 +156,8 @@ bool DrawService::RegisterDrawPassCallback(const DrawServicePass pass, DrawPassC
 
     uint32_t token = nextCallbackToken_++;
     if (token == 0) {
-        token = nextCallbackToken_++;
+        LOG_ERROR("DrawService: callback token space exhausted");
+        return false;
     }
     passCallbacks_.push_back({token, pass, callback, userData});
     *outToken = token;

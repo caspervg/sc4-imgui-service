@@ -146,12 +146,12 @@ private:
 
     HWND gameWindow_;
     WNDPROC originalWndProc_;
-    bool initialized_;
-    bool imguiInitialized_;
+    std::atomic<bool> initialized_;
+    std::atomic<bool> imguiInitialized_;
     bool hookInstalled_;
     bool warnedNoDriver_;
     bool warnedMissingWindow_;
-    bool deviceLost_;
+    std::atomic<bool> deviceLost_;
     std::atomic<uint32_t> deviceGeneration_;
     uint32_t nextTextureId_;
 };
