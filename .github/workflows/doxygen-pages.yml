@@ -30,17 +30,12 @@ jobs:
         run: doxygen docs/Doxyfile
 
       - name: Generate docs (plain)
-        run: doxygen docs/Doxyfile.ai
+        run: doxygen docs/Doxyfile.plain
 
       - name: Merge outputs
         run: |
           touch docs/doxygen/html/.nojekyll
           mv docs/doxygen-plain/html docs/doxygen/html/plain
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs/doxygen/html
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
