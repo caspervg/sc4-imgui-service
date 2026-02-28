@@ -13,46 +13,66 @@
 namespace {
     constexpr uint32_t kRDTSCPatchDirectorId = 0xA17E1001;
     constexpr std::string_view kLoggerName = "SC4RDTSCPatch";
+
     constexpr unsigned char kRdtscOpcode0 = 0x0F;
     constexpr unsigned char kRdtscOpcode1 = 0x31;
     constexpr unsigned char kUd2Opcode0 = 0x0F;
     constexpr unsigned char kUd2Opcode1 = 0x0B;
+    constexpr unsigned char kXorEaxOpcode0 = 0x33;
+    constexpr unsigned char kXorEaxOpcode1 = 0xC0;
+    constexpr unsigned char kJnzShortOpcode = 0x75;
+    constexpr unsigned char kJmpShortOpcode = 0xEB;
 
     constexpr uintptr_t kExpectedModuleBase = 0x00400000;
-    constexpr uintptr_t kVerifiedRdtscRvas[] = {
-        0x006584D6,
-        0x006584DD,
-        0x006584E3,
-        0x006585C1,
-        0x006585C8,
-        0x006585CE,
-        0x006587A6,
-        0x006587AD,
-        0x006587B3,
-        0x0065886E,
-        0x00658875,
-        0x0065887B,
-        0x00493153,
-        0x0049310F,
-        0x004905D9,
-        0x004905A7,
-        0x00490575,
-        0x004904E7,
-        0x004903A6,
-        0x004902A9,
-        0x004901C7,
-        0x00490143,
-        0x00490137,
-        0x0048FE80,
-        0x0048FE45,
-        0x0048FDEB,
-        0x00320ADB,
-        0x00320A76,
-        0x0032081B,
-        0x0030E2B4,
-        0x0028BF81,
-        0x0028BF55,
-        0x001D9394,
+
+    struct PatchSpec {
+        uintptr_t rva;
+        unsigned char expected0;
+        unsigned char expected1;
+        unsigned char replacement0;
+        unsigned char replacement1;
+        bool trapWithVeh;
+    };
+
+    constexpr PatchSpec kPatchSpecs[] = {
+        // CRT memset / zero benchmarking blocks. These only use EAX deltas.
+        {0x006584D6, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006584DD, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006584E3, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006585C1, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006585C8, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006585CE, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006587A6, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006587AD, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x006587B3, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x0065886E, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x00658875, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+        {0x0065887B, kRdtscOpcode0, kRdtscOpcode1, kXorEaxOpcode0, kXorEaxOpcode1, false},
+
+        // Timing wrappers around 0x008905xx already have a non-TSC fallback path.
+        {0x00490567, kJnzShortOpcode, 0x16, kJmpShortOpcode, 0x16, false},
+        {0x00490599, kJnzShortOpcode, 0x17, kJmpShortOpcode, 0x17, false},
+        {0x004905C8, kJnzShortOpcode, 0x1A, kJmpShortOpcode, 0x1A, false},
+
+        // Remaining real timestamp reads still use VEH-based synthetic TSC.
+        {0x00493153, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0049310F, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x004904E7, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x004903A6, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x004902A9, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x004901C7, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x00490143, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x00490137, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0048FE80, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0048FE45, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0048FDEB, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x00320ADB, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x00320A76, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0032081B, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0030E2B4, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0028BF81, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x0028BF55, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
+        {0x001D9394, kRdtscOpcode0, kRdtscOpcode1, kUd2Opcode0, kUd2Opcode1, true},
     };
 }
 
@@ -92,7 +112,9 @@ public:
         }
 
         installed_ = true;
-        LOG_INFO("RDTSCPatchDirector: installed {} RDTSC patch(es)", patchedSites_.size());
+        LOG_INFO("RDTSCPatchDirector: installed {} patch(es), {} use VEH",
+                 patchedSites_.size(),
+                 vehSites_.size());
         return true;
     }
 
@@ -131,7 +153,7 @@ private:
         }
 
         const uintptr_t instructionPointer = static_cast<uintptr_t>(exceptionInfo->ContextRecord->Eip);
-        if (!sInstance_->IsPatchedSite_(instructionPointer)) {
+        if (!sInstance_->IsVehSite_(instructionPointer)) {
             return EXCEPTION_CONTINUE_SEARCH;
         }
 
@@ -194,8 +216,8 @@ private:
             LOG_WARN("RDTSCPatchDirector: unexpected module base {:08X}", moduleBase);
         }
 
-        for (const uintptr_t rva : kVerifiedRdtscRvas) {
-            PatchSite_(moduleBase + rva);
+        for (const PatchSpec& spec : kPatchSpecs) {
+            ApplyPatch_(moduleBase + spec.rva, spec);
         }
 
         std::sort(
@@ -205,38 +227,43 @@ private:
                 return left.address < right.address;
             });
 
+        std::sort(vehSites_.begin(), vehSites_.end());
+
         if (patchedSites_.empty()) {
-            LOG_WARN("RDTSCPatchDirector: no verified RDTSC sites were patched");
+            LOG_WARN("RDTSCPatchDirector: no patch sites were applied");
         }
 
         return !patchedSites_.empty();
     }
 
-    void PatchSite_(const uintptr_t address) {
-        auto* instruction = reinterpret_cast<unsigned char*>(address);
-        if (instruction[0] != kRdtscOpcode0 || instruction[1] != kRdtscOpcode1) {
-            LOG_WARN("RDTSCPatchDirector: expected RDTSC missing at {:08X}", address);
+    void ApplyPatch_(const uintptr_t address, const PatchSpec& spec) {
+        auto* bytes = reinterpret_cast<unsigned char*>(address);
+        if (bytes[0] != spec.expected0 || bytes[1] != spec.expected1) {
+            LOG_WARN("RDTSCPatchDirector: expected bytes {:02X} {:02X} missing at {:08X}",
+                     spec.expected0,
+                     spec.expected1,
+                     address);
             return;
         }
 
         DWORD oldProtect = 0;
-        if (!VirtualProtect(instruction, 2, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        if (!VirtualProtect(bytes, 2, PAGE_EXECUTE_READWRITE, &oldProtect)) {
             LOG_WARN("RDTSCPatchDirector: VirtualProtect failed at {:08X} ({})", address, GetLastError());
             return;
         }
 
-        patchedSites_.push_back(PatchedSite{
-            address,
-            instruction[0],
-            instruction[1],
-        });
+        patchedSites_.push_back(PatchedSite{address, bytes[0], bytes[1]});
 
-        instruction[0] = kUd2Opcode0;
-        instruction[1] = kUd2Opcode1;
+        if (spec.trapWithVeh) {
+            vehSites_.push_back(address);
+        }
+
+        bytes[0] = spec.replacement0;
+        bytes[1] = spec.replacement1;
 
         DWORD restoredProtect = 0;
-        VirtualProtect(instruction, 2, oldProtect, &restoredProtect);
-        FlushInstructionCache(GetCurrentProcess(), instruction, 2);
+        VirtualProtect(bytes, 2, oldProtect, &restoredProtect);
+        FlushInstructionCache(GetCurrentProcess(), bytes, 2);
     }
 
     void RestorePatchedSites_() {
@@ -262,20 +289,21 @@ private:
         }
 
         patchedSites_.clear();
+        vehSites_.clear();
         installed_ = false;
         LOG_INFO("RDTSCPatchDirector: restored patched sites");
     }
 
-    [[nodiscard]] bool IsPatchedSite_(const uintptr_t address) const {
+    [[nodiscard]] bool IsVehSite_(const uintptr_t address) const {
         const auto it = std::lower_bound(
-            patchedSites_.begin(),
-            patchedSites_.end(),
+            vehSites_.begin(),
+            vehSites_.end(),
             address,
-            [](const PatchedSite& site, const uintptr_t value) {
-                return site.address < value;
+            [](const uintptr_t left, const uintptr_t right) {
+                return left < right;
             });
 
-        return it != patchedSites_.end() && it->address == address;
+        return it != vehSites_.end() && *it == address;
     }
 
     [[nodiscard]] uint64_t ComputeSyntheticTsc_() {
@@ -311,6 +339,7 @@ private:
 
     void* vehHandle_ = nullptr;
     std::vector<PatchedSite> patchedSites_;
+    std::vector<uintptr_t> vehSites_;
     std::atomic<uint64_t> fakeTsc_{0};
     uint64_t qpcFrequency_ = 0;
     uint64_t qpcStart_ = 0;
