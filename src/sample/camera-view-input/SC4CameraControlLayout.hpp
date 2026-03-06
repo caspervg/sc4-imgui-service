@@ -136,6 +136,14 @@ namespace SC4CameraControl
     constexpr float kPitchMinRadians = kPitchMinDegrees * (kPi / 180.0f);
     constexpr float kPitchMaxRadians = kPitchMaxDegrees * (kPi / 180.0f);
     constexpr size_t kZoomCount = 5;
+    constexpr float kDefaultYawRadians = -0.39269909f;
+    constexpr float kDefaultPitchRadians[kZoomCount] = {
+        0.52359879f,
+        0.61086524f,
+        0.69813168f,
+        0.78539819f,
+        0.78539819f
+    };
 
     constexpr uintptr_t kYawAddress1 = 0x00ABCFC4;
     constexpr uintptr_t kYawAddress2 = 0x00ABACB8;
@@ -320,6 +328,21 @@ namespace SC4CameraControl
         }
     }
 
+    inline void ApplyDefaultPitchOverrides()
+    {
+        for (size_t i = 0; i < kZoomCount; i++) {
+            const float pitch = SanitizePitchRadians(kDefaultPitchRadians[i]);
+            OverwriteMemoryFloat(kPitchAddress1 + (i * sizeof(float)), pitch);
+            OverwriteMemoryFloat(kPitchAddress2 + (i * sizeof(float)), pitch);
+        }
+    }
+
+    inline float GetDefaultPitchForZoom(const int32_t zoom)
+    {
+        const auto index = static_cast<size_t>(std::clamp(zoom, 0, static_cast<int32_t>(kZoomCount - 1)));
+        return SanitizePitchRadians(kDefaultPitchRadians[index]);
+    }
+
     inline bool SetViewTargetPosition(const cS3DVector3& value)
     {
         auto* cameraControl = GetActiveCameraControl();
@@ -416,6 +439,37 @@ namespace SC4CameraControl
         }
 
         return SetYawPitch(gQueuedYaw, gQueuedPitch);
+    }
+
+    inline void ClearQueuedYawPitch()
+    {
+        gQueuedYaw = 0.0f;
+        gQueuedPitch = kPitchMinRadians;
+        gHasQueuedYawPitch.store(false, std::memory_order_release);
+    }
+
+    inline bool ResetToDefaults()
+    {
+        auto* cameraControl = GetActiveCameraControl();
+        if (!cameraControl) {
+            ClearQueuedYawPitch();
+            return false;
+        }
+
+        ClearQueuedYawPitch();
+
+        ApplyYawOverride(kDefaultYawRadians);
+        ApplyDefaultPitchOverrides();
+
+        cameraControl->yaw = SanitizeYawRadians(kDefaultYawRadians);
+        cameraControl->pitch = GetDefaultPitchForZoom(cameraControl->zoom);
+
+        if (!SetCustomMagnification(1.0f)) {
+            return false;
+        }
+
+        cameraControl = GetActiveCameraControl();
+        return cameraControl && Refresh(*cameraControl, kUpdateReasonGeneric);
     }
 
     inline bool SetCameraDistance(const float value)

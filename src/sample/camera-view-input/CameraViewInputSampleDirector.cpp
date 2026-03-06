@@ -1,5 +1,7 @@
 #include "cIGZFrameWork.h"
-#include "cRZCOMDllDirector.h"
+#include "cIGZMessage2Standard.h"
+#include "cIGZMessageServer2.h"
+#include "cRZMessage2COMDirector.h"
 
 #include "imgui.h"
 #include "public/ImGuiPanelAdapter.h"
@@ -11,6 +13,7 @@
 #include "sample/camera-view-input/SC4CameraControlLayout.hpp"
 #include "utils/Logger.h"
 #include "SC4UI.h"
+#include "GZServPtrs.h"
 
 #include <atomic>
 #include <algorithm>
@@ -21,6 +24,7 @@ namespace
 {
     constexpr uint32_t kCameraViewInputDirectorID = 0xA2D16E7B;
     constexpr uint32_t kCameraViewInputPanelId = 0x7D5C0192;
+    constexpr uint32_t kSC4MessagePreSave = 0x26C63343;
 
     CameraViewInputControl* gCameraInputTool = nullptr;
     cIGZS3DCameraService* gCameraService = nullptr;
@@ -31,6 +35,17 @@ namespace
     bool gInvertPitch = false;
 
     void DisableCameraInputTool();
+    void SyncToolSettings();
+
+    void ResetAllDefaults()
+    {
+        gRotateDegPerPixel = 0.26f;
+        gPitchDegPerPixel = 0.20f;
+        gInvertPitch = false;
+        SyncToolSettings();
+        SC4CameraControl::ResetToDefaults();
+        SC4CameraControl::RequestViewRedraw();
+    }
 
     float DegToRad(const float degrees)
     {
@@ -149,9 +164,7 @@ namespace
             ImGui::Checkbox("Invert Pitch", &gInvertPitch);
 
             if (ImGui::Button("Reset Defaults")) {
-                gRotateDegPerPixel = 0.26f;
-                gPitchDegPerPixel = 0.20f;
-                gInvertPitch = false;
+                ResetAllDefaults();
             }
 
             SyncToolSettings();
@@ -205,14 +218,15 @@ namespace
             ImGui::End();
         }
     };
-}
+} // namespace
 
-class CameraViewInputSampleDirector final : public cRZCOMDllDirector
+class CameraViewInputSampleDirector final : public cRZMessage2COMDirector
 {
 public:
     CameraViewInputSampleDirector()
         : imguiService_(nullptr)
         , cameraService_(nullptr)
+        , subscribedToPreSave_(false)
         , panelRegistered_(false)
     {
     }
@@ -236,6 +250,14 @@ public:
     {
         if (!mpFrameWork || panelRegistered_) {
             return true;
+        }
+
+        cIGZMessageServer2Ptr messageServer;
+        if (messageServer && messageServer->AddNotification(this, kSC4MessagePreSave)) {
+            subscribedToPreSave_ = true;
+        }
+        else {
+            LOG_WARN("CameraViewInput: failed to subscribe to kSC4MessagePreSave");
         }
 
         if (!mpFrameWork->GetSystemService(kImGuiServiceID,
@@ -274,9 +296,27 @@ public:
         return true;
     }
 
+    bool DoMessage(cIGZMessage2* message) override
+    {
+        auto* standardMessage = static_cast<cIGZMessage2Standard*>(message);
+        if (standardMessage && standardMessage->GetType() == kSC4MessagePreSave) {
+            ResetAllDefaults();
+        }
+
+        return true;
+    }
+
     bool PostAppShutdown() override
     {
         DestroyCameraInputTool();
+
+        if (subscribedToPreSave_) {
+            cIGZMessageServer2Ptr messageServer;
+            if (messageServer) {
+                messageServer->RemoveNotification(this, kSC4MessagePreSave);
+            }
+            subscribedToPreSave_ = false;
+        }
 
         if (imguiService_) {
             imguiService_->UnregisterPanel(kCameraViewInputPanelId);
@@ -297,6 +337,7 @@ public:
 private:
     cIGZImGuiService* imguiService_;
     cIGZS3DCameraService* cameraService_;
+    bool subscribedToPreSave_;
     bool panelRegistered_;
 };
 

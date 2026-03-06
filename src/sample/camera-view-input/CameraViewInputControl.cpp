@@ -25,6 +25,7 @@
 namespace
 {
     constexpr uint32_t kModifierAlt = 0x40000;
+    constexpr float kMagnificationWheelScalePerNotch = 1.04f;
 
     constexpr float kPi = SC4CameraControl::kPi;
     constexpr float kPitchMinRadians = SC4CameraControl::kPitchMinRadians;
@@ -179,7 +180,7 @@ bool CameraViewInputControl::OnMouseWheel(const int32_t, const int32_t, const ui
         }
 
         const float notches = static_cast<float>(wheelDelta) / 120.0f;
-        const float scale = std::pow(1.1f, notches);
+        const float scale = std::pow(kMagnificationWheelScalePerNotch, notches);
         return SC4CameraControl::SetCustomMagnification(cameraControl->customMagnification * scale);
     }
 
