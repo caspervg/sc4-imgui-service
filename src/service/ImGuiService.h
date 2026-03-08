@@ -98,6 +98,7 @@ private:
         std::vector<uint8_t> sourceData;       // RGBA32 pixel data for recreation
         IDirectDrawSurface7* surface;          // Can be nullptr if device lost
         bool needsRecreation;
+        bool pendingDestroy;
         bool useSystemMemory;
 
         ManagedTexture()
@@ -107,6 +108,7 @@ private:
             , creationGeneration(0)
             , surface(nullptr)
             , needsRecreation(false)
+            , pendingDestroy(false)
             , useSystemMemory(false) {}
     };
 
@@ -132,6 +134,7 @@ private:
     bool EnsureInitialized_();
     void InitializePanels_();
     void ProcessPendingFontRegistrations_();
+    void ProcessPendingTextureReleases_();
     void SortPanels_();
     bool InstallWndProcHook_(HWND hwnd);
     void RemoveWndProcHook_();
@@ -157,6 +160,7 @@ private:
     mutable std::mutex fontsMutex_;
 
     std::unordered_map<uint32_t, ManagedTexture> textures_;  // Key: texture ID
+    std::vector<uint32_t> pendingTextureReleaseIds_;
     mutable std::mutex texturesMutex_;
 
     ImGuiInitSettings initSettings_;

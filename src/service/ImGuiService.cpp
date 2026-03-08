@@ -226,6 +226,7 @@ bool ImGuiService::Shutdown() {
             }
         }
         textures_.clear();
+        pendingTextureReleaseIds_.clear();
     }
 
     RemoveWndProcHook_();
@@ -449,6 +450,10 @@ void ImGuiService::RenderFrame_(IDirect3DDevice7* device) {
     if (!ImGui::GetCurrentContext()) {
         return;
     }
+
+    // Delay texture destruction until the next frame so draw commands emitted
+    // earlier in the frame never reference a released DDraw surface.
+    ProcessPendingTextureReleases_();
 
     InitializePanels_();
     ProcessPendingFontRegistrations_();
@@ -743,6 +748,7 @@ ImGuiTextureHandle ImGuiService::CreateTexture(const ImGuiTextureDesc& desc) {
     tex.useSystemMemory = desc.useSystemMemory;
     tex.surface = nullptr;
     tex.needsRecreation = false;
+    tex.pendingDestroy = false;
 
     // Store source pixel data for recreation after device loss
     const size_t dataSize = pixelCount * 4; // RGBA32
@@ -813,6 +819,9 @@ void* ImGuiService::GetTextureID(const ImGuiTextureHandle handle) {
     }
 
     ManagedTexture& tex = it->second;
+    if (tex.pendingDestroy) {
+        return nullptr;
+    }
 
     // Recreate surface if needed
     if (tex.needsRecreation || !tex.surface) {
@@ -848,14 +857,15 @@ void ImGuiService::ReleaseTexture(ImGuiTextureHandle handle) {
 
     auto it = textures_.find(handle.id);
     if (it != textures_.end()) {
-        if (it->second.surface) {
-            it->second.surface->Release();
-            it->second.surface = nullptr;
+        ManagedTexture& tex = it->second;
+        if (!tex.pendingDestroy) {
+            tex.pendingDestroy = true;
+            tex.needsRecreation = false;
+            pendingTextureReleaseIds_.push_back(handle.id);
         }
-        textures_.erase(it);
     }
 
-    LOG_INFO("ImGuiService::ReleaseTexture: released texture (id={})", handle.id);
+    LOG_INFO("ImGuiService::ReleaseTexture: queued texture release (id={})", handle.id);
 }
 
 bool ImGuiService::IsTextureValid(const ImGuiTextureHandle handle) const {
@@ -873,7 +883,34 @@ bool ImGuiService::IsTextureValid(const ImGuiTextureHandle handle) const {
     }
 
     std::lock_guard lock(texturesMutex_);
-    return textures_.find(handle.id) != textures_.end();
+    auto it = textures_.find(handle.id);
+    return it != textures_.end() && !it->second.pendingDestroy;
+}
+
+void ImGuiService::ProcessPendingTextureReleases_() {
+    std::vector<uint32_t> pendingIds;
+    {
+        std::lock_guard lock(texturesMutex_);
+        if (pendingTextureReleaseIds_.empty()) {
+            return;
+        }
+        pendingIds.swap(pendingTextureReleaseIds_);
+    }
+
+    std::lock_guard lock(texturesMutex_);
+    for (const uint32_t textureId : pendingIds) {
+        auto it = textures_.find(textureId);
+        if (it == textures_.end() || !it->second.pendingDestroy) {
+            continue;
+        }
+
+        if (it->second.surface) {
+            it->second.surface->Release();
+            it->second.surface = nullptr;
+        }
+        textures_.erase(it);
+        LOG_INFO("ImGuiService::ProcessPendingTextureReleases_: released texture (id={})", textureId);
+    }
 }
 
 bool ImGuiService::RegisterFont(uint32_t fontId, const char* filePath, float sizePixels) {
