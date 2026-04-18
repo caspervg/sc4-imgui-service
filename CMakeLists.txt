@@ -157,6 +157,13 @@ set(CUSTOM_SERVICES_SOURCES
         ${SC4RS_ROOT}/src/service/ImGuiService.cpp
         ${SC4RS_ROOT}/src/service/S3DCameraService.cpp
         ${SC4RS_ROOT}/src/service/DrawService.cpp
+        ${SC4RS_ROOT}/src/service/decal/ClippedTerrainDecalRenderer.cpp
+        ${SC4RS_ROOT}/src/service/decal/RelativeCallPatch.cpp
+        ${SC4RS_ROOT}/src/service/decal/TerrainDecalRegistry.cpp
+        ${SC4RS_ROOT}/src/service/decal/TerrainDecalService.cpp
+        ${SC4RS_ROOT}/src/service/decal/TerrainDecalSidecarCodec.cpp
+        ${SC4RS_ROOT}/src/service/decal/TerrainDecalSymbols.cpp
+        ${SC4RS_ROOT}/src/service/decal/TerrainDecalHook.cpp
         ${SC4RS_ROOT}/src/service/RenderServicesDirector.cpp
         ${SC4RS_ROOT}/src/utils/VersionDetection.cpp
         ${SC4RS_ROOT}/src/utils/Logger.cpp
@@ -460,6 +467,34 @@ set_target_properties(SC4RoadDecalSample PROPERTIES
         PREFIX ""
 )
 
+# Terrain Decal sample DLL
+set(TERRAIN_DECAL_SAMPLE_SOURCES
+        ${SC4RS_ROOT}/src/sample/TerrainDecalSampleDirector.cpp
+        ${SC4RS_ROOT}/src/utils/Logger.cpp
+)
+
+add_library(SC4TerrainDecalSample SHARED ${TERRAIN_DECAL_SAMPLE_SOURCES} ${SC4_COMMON_DIRECTOR_DEF})
+
+target_include_directories(SC4TerrainDecalSample PRIVATE
+        ${SC4RS_ROOT}/src
+        ${SC4RS_ROOT}/src/service
+        ${IMGUI_DIR}
+)
+
+target_link_libraries(SC4TerrainDecalSample PRIVATE
+        imgui
+        gzcom2
+        spdlog
+)
+
+target_compile_definitions(SC4TerrainDecalSample PRIVATE IMGUI_DLL_IMPORT)
+
+set_target_properties(SC4TerrainDecalSample PROPERTIES
+        OUTPUT_NAME "SC4TerrainDecalSample"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+
 # Camera View Input sample DLL
 set(CAMERA_VIEW_INPUT_SAMPLE_SOURCES
         ${SC4RS_ROOT}/src/sample/camera-view-input/CameraViewInputSampleDirector.cpp
@@ -491,7 +526,7 @@ set_target_properties(SC4CameraViewInputSample PROPERTIES
 
 
 add_custom_target(SC4RenderServicesAllTargets
-        DEPENDS imgui SC4RenderServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample SC4RoadDecalSample SC4CameraViewInputSample
+        DEPENDS imgui SC4RenderServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample SC4RoadDecalSample SC4TerrainDecalSample SC4CameraViewInputSample
 )
 
 # Automatic deployment to SC4 directories
@@ -597,6 +632,14 @@ if(WIN32 AND NOT DEFINED ENV{CI})
                 COMMENT "Deploying SC4RoadDecalSample.dll to Plugins folder"
         )
 
+        add_custom_command(TARGET SC4TerrainDecalSample POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:SC4TerrainDecalSample>
+                "${SC4_PLUGINS_DIR}/"
+                COMMENT "Deploying SC4TerrainDecalSample.dll to Plugins folder"
+        )
+
         add_custom_command(TARGET SC4CameraViewInputSample POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -615,6 +658,7 @@ if(WIN32 AND NOT DEFINED ENV{CI})
         message(STATUS "  - SC4WorldProjectionSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4DrawServiceSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4RoadDecalSample.dll -> ${SC4_PLUGINS_DIR}/")
+        message(STATUS "  - SC4TerrainDecalSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4CameraViewInputSample.dll -> ${SC4_PLUGINS_DIR}/")
     else()
         message(WARNING "SC4 installation not found. Manual deployment required.")

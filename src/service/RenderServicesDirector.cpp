@@ -1,9 +1,14 @@
 #include "DrawService.h"
 #include "ImGuiService.h"
 #include "S3DCameraService.h"
+#include "decal/TerrainDecalService.h"
 
+#include "GZServPtrs.h"
 #include "cIGZFrameWork.h"
-#include "cRZCOMDllDirector.h"
+#include "cIGZMessage2.h"
+#include "cIGZMessageServer2.h"
+#include "cRZAutoRefCount.h"
+#include "cRZMessage2COMDirector.h"
 #include "utils/Logger.h"
 #include "utils/Settings.h"
 
@@ -19,6 +24,10 @@ namespace {
     constexpr std::string_view kSettingsFileName = "SC4RenderServices.ini";
     constexpr auto kDemoPanelId = 0xA17E0001u;
     constexpr auto kDemoPanelOrder = 0;
+    constexpr uint32_t kSC4MessagePostCityInit = 0x26D31EC1;
+    constexpr uint32_t kSC4MessagePreCityShutdown = 0x26D31EC2;
+    constexpr uint32_t kSC4MessageLoad = 0x26C63341;
+    constexpr uint32_t kSC4MessageSave = 0x26C63344;
     #ifndef SC4RS_PRODUCT_VERSION_STR
     #define SC4RS_PRODUCT_VERSION_STR "dev"
     #endif
@@ -57,7 +66,7 @@ namespace {
     }
 }
 
-class RenderServicesDirector final : public cRZCOMDllDirector {
+class RenderServicesDirector final : public cRZMessage2COMDirector {
 public:
     RenderServicesDirector() = default;
 
@@ -66,7 +75,7 @@ public:
     }
 
     bool OnStart(cIGZCOM* pCOM) override {
-        cRZCOMDllDirector::OnStart(pCOM);
+        cRZMessage2COMDirector::OnStart(pCOM);
 
         // Step 1: Get DLL folder path for settings and logging
         std::filesystem::path dllFolderPath;
@@ -98,6 +107,12 @@ public:
                  settings.GetTheme(),
                  settings.GetUIScale(),
                  settings.GetKeyboardNav());
+        LOG_INFO("RenderServicesDirector: services enabled (ImGui={}, S3DCamera={}, Draw={}, TerrainDecal={}, TerrainDecalExperimentalRenderer={})",
+                 settings.GetEnableImGuiService(),
+                 settings.GetEnableS3DCameraService(),
+                 settings.GetEnableDrawService(),
+                 settings.GetEnableTerrainDecalService(),
+                 settings.GetEnableTerrainDecalExperimentalRenderer());
 
         if (!mpFrameWork) {
             LOG_WARN("RenderServicesDirector: framework not available");
@@ -160,7 +175,37 @@ public:
             LOG_INFO("RenderServicesDirector: DrawService disabled by settings");
         }
 
+        if (settings.GetEnableTerrainDecalService()) {
+            terrainDecalService_.SetEnableExperimentalRenderer(settings.GetEnableTerrainDecalExperimentalRenderer());
+            if (terrainDecalService_.Init()) {
+                mpFrameWork->AddSystemService(&terrainDecalService_);
+                mpFrameWork->AddToTick(&terrainDecalService_);
+                terrainDecalServiceRegistered_ = true;
+                LOG_INFO("RenderServicesDirector: TerrainDecalService registered");
+
+                cIGZMessageServer2Ptr pMS2;
+                if (pMS2) {
+                    pMS2->AddNotification(this, kSC4MessagePostCityInit);
+                    pMS2->AddNotification(this, kSC4MessagePreCityShutdown);
+                    pMS2->AddNotification(this, kSC4MessageLoad);
+                    pMS2->AddNotification(this, kSC4MessageSave);
+                    messageServer_ = pMS2;
+                }
+            } else {
+                LOG_WARN("RenderServicesDirector: TerrainDecalService not registered");
+            }
+        } else {
+            LOG_INFO("RenderServicesDirector: TerrainDecalService disabled by settings");
+        }
+
         return true;
+    }
+
+    bool DoMessage(cIGZMessage2* pMsg) override {
+        if (!terrainDecalServiceRegistered_) {
+            return false;
+        }
+        return terrainDecalService_.HandleMessage(pMsg);
     }
 
     bool PostAppShutdown() override {
@@ -171,12 +216,26 @@ public:
             mpFrameWork->RemoveSystemService(&imguiService_);
             mpFrameWork->RemoveSystemService(&cameraService_);
             mpFrameWork->RemoveSystemService(&drawService_);
+            if (terrainDecalServiceRegistered_) {
+                mpFrameWork->RemoveFromTick(&terrainDecalService_);
+                mpFrameWork->RemoveSystemService(&terrainDecalService_);
+            }
             mpFrameWork->RemoveHook(this);
+        }
+
+        if (messageServer_) {
+            messageServer_->RemoveNotification(this, kSC4MessagePostCityInit);
+            messageServer_->RemoveNotification(this, kSC4MessagePreCityShutdown);
+            messageServer_->RemoveNotification(this, kSC4MessageLoad);
+            messageServer_->RemoveNotification(this, kSC4MessageSave);
+            messageServer_ = nullptr;
         }
 
         imguiService_.Shutdown();
         cameraService_.Shutdown();
         drawService_.Shutdown();
+        terrainDecalService_.Shutdown();
+        terrainDecalServiceRegistered_ = false;
         return true;
     }
 
@@ -231,6 +290,9 @@ private:
     ImGuiService imguiService_;
     S3DCameraService cameraService_;
     DrawService drawService_;
+    TerrainDecalService terrainDecalService_;
+    cRZAutoRefCount<cIGZMessageServer2> messageServer_;
+    bool terrainDecalServiceRegistered_ = false;
     DemoPanelState demoPanelState_{true};
 };
 

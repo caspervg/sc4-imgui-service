@@ -1,6 +1,9 @@
 # Service Reference
 
-This document covers the three services registered by `SC4RenderServices.dll`: ImGui, S3D Camera, and Draw. All three are gated to SimCity 4 version `1.1.641`. If the version check fails, the service is not registered and `cIGZFrameWork::GetSystemService` will fail.
+This document covers the services registered by `SC4RenderServices.dll`:
+ImGui, S3D Camera, Draw, and Terrain Decal. All services are currently gated to
+SimCity 4 version `1.1.641`. If the version check fails, the service is not
+registered and `cIGZFrameWork::GetSystemService` will fail.
 
 ## Common access pattern
 
@@ -173,3 +176,54 @@ if (drawService->RegisterDrawPassCallback(DrawServicePass::Dynamic,
 Larger examples:
 - `../src/sample/DrawServiceSampleDirector.cpp`
 - `../src/sample/road-decal/RoadDecalSampleDirector.cpp`
+
+## Terrain Decal Service
+
+IDs and interface:
+- Service ID: `kTerrainDecalServiceID` in `src/public/TerrainDecalServiceIds.h`
+- Interface ID: `GZIID_cIGZTerrainDecalService` in
+  `src/public/TerrainDecalServiceIds.h`
+- Interface header: `src/public/cIGZTerrainDecalService.h`
+
+Capabilities:
+- Create, update, remove, and enumerate managed terrain decals.
+- Persist managed decals into the city save and recreate them on load.
+- Target static or dynamic land/water overlay managers.
+- Apply optional UV sub-rectangle overrides for atlas-style textures.
+
+Important behavior:
+- `CreateDecal` and `ReplaceDecal` operate on the active city only.
+- `GetDecal` and `CopyDecals` return service-managed snapshots.
+- The service is currently intended for plugin-managed decals, not for
+  discovering or taking ownership of arbitrary pre-existing terrain overlays.
+
+Minimal usage:
+```cpp
+cIGZTerrainDecalService* terrainDecalService = nullptr;
+if (!fw->GetSystemService(kTerrainDecalServiceID,
+                          GZIID_cIGZTerrainDecalService,
+                          reinterpret_cast<void**>(&terrainDecalService))) {
+    return;
+}
+
+TerrainDecalState state{};
+state.textureKey = cGZPersistResourceKey{0x7AB50E44, 0x1ABE787D, 0xAA40173A};
+state.overlayType = cISTETerrainView::tOverlayManagerType::DynamicLand;
+state.decalInfo.center = cS3DVector2{512.0f, 512.0f};
+state.decalInfo.baseSize = 16.0f;
+state.decalInfo.aspectMultiplier = 1.0f;
+state.decalInfo.uvScaleU = 1.0f;
+state.decalInfo.uvScaleV = 1.0f;
+state.opacity = 1.0f;
+state.enabled = true;
+
+TerrainDecalId id{};
+terrainDecalService->CreateDecal(state, &id);
+terrainDecalService->Release();
+```
+
+Larger example:
+- `../src/sample/TerrainDecalSampleDirector.cpp`
+
+Detailed reference:
+- `terrain-decals.md`

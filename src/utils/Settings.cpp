@@ -27,6 +27,8 @@ namespace {
     constexpr bool kDefaultEnableImGuiService = true;
     constexpr bool kDefaultEnableS3DCameraService = true;
     constexpr bool kDefaultEnableDrawService = true;
+    constexpr bool kDefaultEnableTerrainDecalService = true;
+    constexpr bool kDefaultEnableTerrainDecalExperimentalRenderer = true;
 
     const std::string kDefaultTheme = "dark";
     const std::string kSectionName = "SC4RenderServices";
@@ -112,7 +114,9 @@ Settings::Settings()
     , showDemoPanel_(kDefaultShowDemoPanel)
     , enableImGuiService_(kDefaultEnableImGuiService)
     , enableS3DCameraService_(kDefaultEnableS3DCameraService)
-    , enableDrawService_(kDefaultEnableDrawService) {}
+    , enableDrawService_(kDefaultEnableDrawService)
+    , enableTerrainDecalService_(kDefaultEnableTerrainDecalService)
+    , enableTerrainDecalExperimentalRenderer_(kDefaultEnableTerrainDecalExperimentalRenderer) {}
 
 void Settings::Load(const std::filesystem::path& settingsFilePath) {
     // Reset to defaults
@@ -278,6 +282,28 @@ void Settings::Load(const std::filesystem::path& settingsFilePath) {
                 LOG_ERROR("Invalid EnableDrawService value '{}' in {}. Using default true.", text, settingsFilePath.string());
             }
         }
+
+        // EnableTerrainDecalService
+        if (section.has("EnableTerrainDecalService")) {
+            bool valid = false;
+            const std::string text = section.get("EnableTerrainDecalService");
+            enableTerrainDecalService_ = ParseBool(text, valid);
+            if (!valid) {
+                enableTerrainDecalService_ = kDefaultEnableTerrainDecalService;
+                LOG_ERROR("Invalid EnableTerrainDecalService value '{}' in {}. Using default true.", text, settingsFilePath.string());
+            }
+        }
+
+        // EnableTerrainDecalExperimentalRenderer
+        if (section.has("EnableTerrainDecalExperimentalRenderer")) {
+            bool valid = false;
+            const std::string text = section.get("EnableTerrainDecalExperimentalRenderer");
+            enableTerrainDecalExperimentalRenderer_ = ParseBool(text, valid);
+            if (!valid) {
+                enableTerrainDecalExperimentalRenderer_ = kDefaultEnableTerrainDecalExperimentalRenderer;
+                LOG_ERROR("Invalid EnableTerrainDecalExperimentalRenderer value '{}' in {}. Using default true.", text, settingsFilePath.string());
+            }
+        }
     }
     catch (const std::exception& e) {
         LOG_ERROR("Error reading settings file {}: {}", settingsFilePath.string(), e.what());
@@ -297,3 +323,5 @@ bool Settings::GetShowDemoPanel() const noexcept { return showDemoPanel_; }
 bool Settings::GetEnableImGuiService() const noexcept { return enableImGuiService_; }
 bool Settings::GetEnableS3DCameraService() const noexcept { return enableS3DCameraService_; }
 bool Settings::GetEnableDrawService() const noexcept { return enableDrawService_; }
+bool Settings::GetEnableTerrainDecalService() const noexcept { return enableTerrainDecalService_; }
+bool Settings::GetEnableTerrainDecalExperimentalRenderer() const noexcept { return enableTerrainDecalExperimentalRenderer_; }
