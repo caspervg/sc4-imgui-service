@@ -29,6 +29,8 @@ public:
     [[nodiscard]] bool GetEnableImGuiService() const noexcept;
     [[nodiscard]] bool GetEnableS3DCameraService() const noexcept;
     [[nodiscard]] bool GetEnableDrawService() const noexcept;
+    [[nodiscard]] bool GetEnableTerrainDecalService() const noexcept;
+    [[nodiscard]] bool GetEnableTerrainDecalExperimentalRenderer() const noexcept;
 
 private:
     spdlog::level::level_enum logLevel_;
@@ -43,4 +45,6 @@ private:
     bool enableImGuiService_;
     bool enableS3DCameraService_;
     bool enableDrawService_;
+    bool enableTerrainDecalService_;
+    bool enableTerrainDecalExperimentalRenderer_;
 };

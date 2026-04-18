@@ -70,6 +70,11 @@ ShowDemoPanel=false
 EnableImGuiService=true
 EnableS3DCameraService=true
 EnableDrawService=true
+EnableTerrainDecalService=true
+
+; Enables the custom terrain decal renderer path used for UV subrect support
+; and clipped decal rendering.
+EnableTerrainDecalExperimentalRenderer=true
 ```
 
 ## Outputs

@@ -8,6 +8,10 @@ The service is currently gated to SimCity 4 version `1.1.641`. On unsupported
 versions it is not registered, and `cIGZFrameWork::GetSystemService(...)` will
 fail.
 
+Relevant ini settings:
+- `EnableTerrainDecalService=true`
+- `EnableTerrainDecalExperimentalRenderer=true`
+
 ## What It Adds
 
 The terrain decal service adds a managed layer on top of SimCity 4 terrain

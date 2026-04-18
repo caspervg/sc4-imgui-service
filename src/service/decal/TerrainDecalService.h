@@ -35,7 +35,8 @@ public:
     uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity) const override;
     bool OnTick(uint32_t unknown1) override;
 
-    bool Init();
+    void SetEnableExperimentalRenderer(bool enableExperimentalRenderer) noexcept;
+    bool Init() override;
     bool Shutdown();
     bool HandleMessage(cIGZMessage2* message);
 
@@ -66,5 +67,6 @@ private:
     TerrainDecalRegistry registry_{};
     std::unique_ptr<TerrainDecal::TerrainDecalHook> renderHook_{};
     std::vector<TerrainDecalSnapshot> pendingLoadedDecals_{};
+    bool enableExperimentalRenderer_ = true;
     bool cityLoaded_ = false;
 };

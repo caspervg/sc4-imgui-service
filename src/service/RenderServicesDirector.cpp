@@ -107,6 +107,12 @@ public:
                  settings.GetTheme(),
                  settings.GetUIScale(),
                  settings.GetKeyboardNav());
+        LOG_INFO("RenderServicesDirector: services enabled (ImGui={}, S3DCamera={}, Draw={}, TerrainDecal={}, TerrainDecalExperimentalRenderer={})",
+                 settings.GetEnableImGuiService(),
+                 settings.GetEnableS3DCameraService(),
+                 settings.GetEnableDrawService(),
+                 settings.GetEnableTerrainDecalService(),
+                 settings.GetEnableTerrainDecalExperimentalRenderer());
 
         if (!mpFrameWork) {
             LOG_WARN("RenderServicesDirector: framework not available");
@@ -169,22 +175,27 @@ public:
             LOG_INFO("RenderServicesDirector: DrawService disabled by settings");
         }
 
-        if (terrainDecalService_.Init()) {
-            mpFrameWork->AddSystemService(&terrainDecalService_);
-            mpFrameWork->AddToTick(&terrainDecalService_);
-            terrainDecalServiceRegistered_ = true;
-            LOG_INFO("RenderServicesDirector: TerrainDecalService registered");
+        if (settings.GetEnableTerrainDecalService()) {
+            terrainDecalService_.SetEnableExperimentalRenderer(settings.GetEnableTerrainDecalExperimentalRenderer());
+            if (terrainDecalService_.Init()) {
+                mpFrameWork->AddSystemService(&terrainDecalService_);
+                mpFrameWork->AddToTick(&terrainDecalService_);
+                terrainDecalServiceRegistered_ = true;
+                LOG_INFO("RenderServicesDirector: TerrainDecalService registered");
 
-            cIGZMessageServer2Ptr pMS2;
-            if (pMS2) {
-                pMS2->AddNotification(this, kSC4MessagePostCityInit);
-                pMS2->AddNotification(this, kSC4MessagePreCityShutdown);
-                pMS2->AddNotification(this, kSC4MessageLoad);
-                pMS2->AddNotification(this, kSC4MessageSave);
-                messageServer_ = pMS2;
+                cIGZMessageServer2Ptr pMS2;
+                if (pMS2) {
+                    pMS2->AddNotification(this, kSC4MessagePostCityInit);
+                    pMS2->AddNotification(this, kSC4MessagePreCityShutdown);
+                    pMS2->AddNotification(this, kSC4MessageLoad);
+                    pMS2->AddNotification(this, kSC4MessageSave);
+                    messageServer_ = pMS2;
+                }
+            } else {
+                LOG_WARN("RenderServicesDirector: TerrainDecalService not registered");
             }
         } else {
-            LOG_WARN("RenderServicesDirector: TerrainDecalService not registered");
+            LOG_INFO("RenderServicesDirector: TerrainDecalService disabled by settings");
         }
 
         return true;

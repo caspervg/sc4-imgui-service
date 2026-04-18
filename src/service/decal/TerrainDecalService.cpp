@@ -172,6 +172,11 @@ bool TerrainDecalService::OnTick(const uint32_t unknown1)
     return true;
 }
 
+void TerrainDecalService::SetEnableExperimentalRenderer(const bool enableExperimentalRenderer) noexcept
+{
+    enableExperimentalRenderer_ = enableExperimentalRenderer;
+}
+
 bool TerrainDecalService::Init()
 {
     if (versionTag_ != 641) {
@@ -181,7 +186,7 @@ bool TerrainDecalService::Init()
 
     renderHook_ = std::make_unique<TerrainDecal::TerrainDecalHook>(TerrainDecal::TerrainDecalHook::Options{
         .installEnabled = true,
-        .enableExperimentalRenderer = true,
+        .enableExperimentalRenderer = enableExperimentalRenderer_,
     });
 
     if (!renderHook_->Install()) {
