@@ -1,6 +1,7 @@
 # sc4-render-services
 
-Render services and samples (ImGui, Draw, S3D Camera) for SimCity 4 DLL plugins using the gzcom-dll SDK.
+Render services and samples (ImGui, Draw, S3D Camera, Terrain Decals) for
+SimCity 4 DLL plugins using the gzcom-dll SDK.
 
 ![Screenshot](docs/assets/preview.jpg)
 
@@ -88,13 +89,16 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 - `SC4OverlayManagerSample.dll` (overlay manager example)
 - `SC4DrawServiceSample.dll` (draw service UI + hooks)
 - `SC4RoadDecalSample.dll` (road decal rendering)
+- `SC4TerrainDecalSample.dll` (terrain decal editor and API sample)
 
 ## Provided Services
 
-`SC4RenderServices.dll` registers three services (currently gated for SimCity 4
+`SC4RenderServices.dll` registers four services (currently gated for SimCity 4
 version `1.1.641`).
 
 Detailed reference: [docs/services.md](docs/services.md)
+
+Terrain decal guide: [docs/terrain-decals.md](docs/terrain-decals.md)
 
 ### 1) ImGui service
 
@@ -124,6 +128,18 @@ Detailed reference: [docs/services.md](docs/services.md)
   (`PreStatic`...`PostDynamic`), and helpers for render state, mesh/model draw
   calls, and primitive drawing.
 - Examples: `SC4DrawServiceSample.dll`, `SC4RoadDecalSample.dll`
+
+### 4) Terrain decal service
+
+- Service ID / IID: `kTerrainDecalServiceID`,
+  `GZIID_cIGZTerrainDecalService`
+  (`src/public/TerrainDecalServiceIds.h`)
+- Interface: `cIGZTerrainDecalService`
+  (`src/public/cIGZTerrainDecalService.h`)
+- Provides managed create/update/remove/enumerate APIs for terrain decals,
+  save/load persistence for managed decals, and optional UV sub-rectangle
+  overrides.
+- Example: `SC4TerrainDecalSample.dll`
 
 ## Usage
 
