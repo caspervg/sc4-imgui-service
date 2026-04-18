@@ -28,7 +28,6 @@ namespace {
     constexpr uint32_t kSC4MessagePreCityShutdown = 0x26D31EC2;
     constexpr uint32_t kSC4MessageLoad = 0x26C63341;
     constexpr uint32_t kSC4MessageSave = 0x26C63344;
-    constexpr uint32_t kSC4MessageRemoveOccupant = 0x99EF1143;
     #ifndef SC4RS_PRODUCT_VERSION_STR
     #define SC4RS_PRODUCT_VERSION_STR "dev"
     #endif
@@ -173,25 +172,28 @@ public:
         if (terrainDecalService_.Init()) {
             mpFrameWork->AddSystemService(&terrainDecalService_);
             mpFrameWork->AddToTick(&terrainDecalService_);
+            terrainDecalServiceRegistered_ = true;
             LOG_INFO("RenderServicesDirector: TerrainDecalService registered");
+
+            cIGZMessageServer2Ptr pMS2;
+            if (pMS2) {
+                pMS2->AddNotification(this, kSC4MessagePostCityInit);
+                pMS2->AddNotification(this, kSC4MessagePreCityShutdown);
+                pMS2->AddNotification(this, kSC4MessageLoad);
+                pMS2->AddNotification(this, kSC4MessageSave);
+                messageServer_ = pMS2;
+            }
         } else {
             LOG_WARN("RenderServicesDirector: TerrainDecalService not registered");
-        }
-
-        cIGZMessageServer2Ptr pMS2;
-        if (pMS2) {
-            pMS2->AddNotification(this, kSC4MessagePostCityInit);
-            pMS2->AddNotification(this, kSC4MessagePreCityShutdown);
-            pMS2->AddNotification(this, kSC4MessageLoad);
-            pMS2->AddNotification(this, kSC4MessageSave);
-            pMS2->AddNotification(this, kSC4MessageRemoveOccupant);
-            messageServer_ = pMS2;
         }
 
         return true;
     }
 
     bool DoMessage(cIGZMessage2* pMsg) override {
+        if (!terrainDecalServiceRegistered_) {
+            return false;
+        }
         return terrainDecalService_.HandleMessage(pMsg);
     }
 
@@ -203,8 +205,10 @@ public:
             mpFrameWork->RemoveSystemService(&imguiService_);
             mpFrameWork->RemoveSystemService(&cameraService_);
             mpFrameWork->RemoveSystemService(&drawService_);
-            mpFrameWork->RemoveFromTick(&terrainDecalService_);
-            mpFrameWork->RemoveSystemService(&terrainDecalService_);
+            if (terrainDecalServiceRegistered_) {
+                mpFrameWork->RemoveFromTick(&terrainDecalService_);
+                mpFrameWork->RemoveSystemService(&terrainDecalService_);
+            }
             mpFrameWork->RemoveHook(this);
         }
 
@@ -213,7 +217,6 @@ public:
             messageServer_->RemoveNotification(this, kSC4MessagePreCityShutdown);
             messageServer_->RemoveNotification(this, kSC4MessageLoad);
             messageServer_->RemoveNotification(this, kSC4MessageSave);
-            messageServer_->RemoveNotification(this, kSC4MessageRemoveOccupant);
             messageServer_ = nullptr;
         }
 
@@ -221,6 +224,7 @@ public:
         cameraService_.Shutdown();
         drawService_.Shutdown();
         terrainDecalService_.Shutdown();
+        terrainDecalServiceRegistered_ = false;
         return true;
     }
 
@@ -277,6 +281,7 @@ private:
     DrawService drawService_;
     TerrainDecalService terrainDecalService_;
     cRZAutoRefCount<cIGZMessageServer2> messageServer_;
+    bool terrainDecalServiceRegistered_ = false;
     DemoPanelState demoPanelState_{true};
 };
 
