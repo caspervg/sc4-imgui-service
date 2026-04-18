@@ -1,9 +1,14 @@
 #include "DrawService.h"
 #include "ImGuiService.h"
 #include "S3DCameraService.h"
+#include "decal/TerrainDecalService.h"
 
+#include "GZServPtrs.h"
 #include "cIGZFrameWork.h"
-#include "cRZCOMDllDirector.h"
+#include "cIGZMessage2.h"
+#include "cIGZMessageServer2.h"
+#include "cRZAutoRefCount.h"
+#include "cRZMessage2COMDirector.h"
 #include "utils/Logger.h"
 #include "utils/Settings.h"
 
@@ -19,6 +24,11 @@ namespace {
     constexpr std::string_view kSettingsFileName = "SC4RenderServices.ini";
     constexpr auto kDemoPanelId = 0xA17E0001u;
     constexpr auto kDemoPanelOrder = 0;
+    constexpr uint32_t kSC4MessagePostCityInit = 0x26D31EC1;
+    constexpr uint32_t kSC4MessagePreCityShutdown = 0x26D31EC2;
+    constexpr uint32_t kSC4MessageLoad = 0x26C63341;
+    constexpr uint32_t kSC4MessageSave = 0x26C63344;
+    constexpr uint32_t kSC4MessageRemoveOccupant = 0x99EF1143;
     #ifndef SC4RS_PRODUCT_VERSION_STR
     #define SC4RS_PRODUCT_VERSION_STR "dev"
     #endif
@@ -57,7 +67,7 @@ namespace {
     }
 }
 
-class RenderServicesDirector final : public cRZCOMDllDirector {
+class RenderServicesDirector final : public cRZMessage2COMDirector {
 public:
     RenderServicesDirector() = default;
 
@@ -66,7 +76,7 @@ public:
     }
 
     bool OnStart(cIGZCOM* pCOM) override {
-        cRZCOMDllDirector::OnStart(pCOM);
+        cRZMessage2COMDirector::OnStart(pCOM);
 
         // Step 1: Get DLL folder path for settings and logging
         std::filesystem::path dllFolderPath;
@@ -160,7 +170,29 @@ public:
             LOG_INFO("RenderServicesDirector: DrawService disabled by settings");
         }
 
+        if (terrainDecalService_.Init()) {
+            mpFrameWork->AddSystemService(&terrainDecalService_);
+            mpFrameWork->AddToTick(&terrainDecalService_);
+            LOG_INFO("RenderServicesDirector: TerrainDecalService registered");
+        } else {
+            LOG_WARN("RenderServicesDirector: TerrainDecalService not registered");
+        }
+
+        cIGZMessageServer2Ptr pMS2;
+        if (pMS2) {
+            pMS2->AddNotification(this, kSC4MessagePostCityInit);
+            pMS2->AddNotification(this, kSC4MessagePreCityShutdown);
+            pMS2->AddNotification(this, kSC4MessageLoad);
+            pMS2->AddNotification(this, kSC4MessageSave);
+            pMS2->AddNotification(this, kSC4MessageRemoveOccupant);
+            messageServer_ = pMS2;
+        }
+
         return true;
+    }
+
+    bool DoMessage(cIGZMessage2* pMsg) override {
+        return terrainDecalService_.HandleMessage(pMsg);
     }
 
     bool PostAppShutdown() override {
@@ -171,12 +203,24 @@ public:
             mpFrameWork->RemoveSystemService(&imguiService_);
             mpFrameWork->RemoveSystemService(&cameraService_);
             mpFrameWork->RemoveSystemService(&drawService_);
+            mpFrameWork->RemoveFromTick(&terrainDecalService_);
+            mpFrameWork->RemoveSystemService(&terrainDecalService_);
             mpFrameWork->RemoveHook(this);
+        }
+
+        if (messageServer_) {
+            messageServer_->RemoveNotification(this, kSC4MessagePostCityInit);
+            messageServer_->RemoveNotification(this, kSC4MessagePreCityShutdown);
+            messageServer_->RemoveNotification(this, kSC4MessageLoad);
+            messageServer_->RemoveNotification(this, kSC4MessageSave);
+            messageServer_->RemoveNotification(this, kSC4MessageRemoveOccupant);
+            messageServer_ = nullptr;
         }
 
         imguiService_.Shutdown();
         cameraService_.Shutdown();
         drawService_.Shutdown();
+        terrainDecalService_.Shutdown();
         return true;
     }
 
@@ -231,6 +275,8 @@ private:
     ImGuiService imguiService_;
     S3DCameraService cameraService_;
     DrawService drawService_;
+    TerrainDecalService terrainDecalService_;
+    cRZAutoRefCount<cIGZMessageServer2> messageServer_;
     DemoPanelState demoPanelState_{true};
 };
 
