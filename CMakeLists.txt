@@ -141,6 +141,35 @@ set_target_properties(SC4RenderServices PROPERTIES
         PREFIX ""
 )
 
+# Transit-enabled lot road/pathfinder access sample DLL.
+set(TRANSIT_ACCESS_SAMPLE_SOURCES
+        ${CMAKE_SOURCE_DIR}/src/sample/transit-access/TransitAccessSampleDirector.cpp
+        ${CMAKE_SOURCE_DIR}/src/utils/VersionDetection.cpp
+        ${CMAKE_SOURCE_DIR}/src/utils/Logger.cpp
+)
+
+add_library(SC4TransitAccessSample SHARED ${TRANSIT_ACCESS_SAMPLE_SOURCES} ${SC4_COMMON_DIRECTOR_DEF})
+
+target_include_directories(SC4TransitAccessSample PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/sample/transit-access
+)
+
+target_link_libraries(SC4TransitAccessSample PRIVATE
+        gzcom2
+        spdlog
+)
+
+if(WIN32)
+    target_link_libraries(SC4TransitAccessSample PRIVATE kernel32 user32 Version)
+endif()
+
+set_target_properties(SC4TransitAccessSample PROPERTIES
+        OUTPUT_NAME "SC4TransitAccessSample"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+
 
 # ImGui sample DLL
 set(IMGUI_SAMPLE_SOURCES
@@ -406,7 +435,7 @@ set_target_properties(SC4RoadDecalSample PROPERTIES
 
 
 add_custom_target(SC4RenderServicesAllTargets
-        DEPENDS imgui SC4RenderServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample SC4RoadDecalSample
+        DEPENDS imgui SC4RenderServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample SC4RoadDecalSample SC4TransitAccessSample
 )
 
 # Automatic deployment to SC4 directories
@@ -507,6 +536,14 @@ if(WIN32 AND NOT DEFINED ENV{CI})
                 COMMENT "Deploying SC4RoadDecalSample.dll to Plugins folder"
         )
 
+        add_custom_command(TARGET SC4TransitAccessSample POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:SC4TransitAccessSample>
+                "${SC4_PLUGINS_DIR}/"
+                COMMENT "Deploying SC4TransitAccessSample.dll to Plugins folder"
+        )
+
         message(STATUS "Deployment targets configured:")
         message(STATUS "  - imgui.dll -> ${SC4_INSTALL_DIR}/Apps/")
         message(STATUS "  - SC4RenderServices.dll -> ${SC4_PLUGINS_DIR}/")
@@ -517,6 +554,7 @@ if(WIN32 AND NOT DEFINED ENV{CI})
         message(STATUS "  - SC4WorldProjectionSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4DrawServiceSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4RoadDecalSample.dll -> ${SC4_PLUGINS_DIR}/")
+        message(STATUS "  - SC4TransitAccessSample.dll -> ${SC4_PLUGINS_DIR}/")
     else()
         message(WARNING "SC4 installation not found. Manual deployment required.")
     endif()
