@@ -5,6 +5,7 @@
 #include <imgui.h>
 #include <mutex>
 #include <new>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -12,6 +13,7 @@
 #include <Windows.h>
 
 #include "cRZBaseSystemService.h"
+#include "DX7InterfaceHook.h"
 #include "public/cIGZImGuiService.h"
 
 // Forward declaration
@@ -29,6 +31,7 @@ public:
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
 
+    void SetInitSettings(const ImGuiInitSettings& settings);
     bool Init() override;
     bool Shutdown() override;
     bool OnTick(uint32_t unknown1) override;
@@ -75,7 +78,15 @@ private:
     struct ManagedFont
     {
         uint32_t id;
-        ImFont* font;  // Pointer to ImFont* managed by ImGui
+        ImFont* font;  // Pointer to ImFont* managed by ImGui; nullptr while registration is pending.
+    };
+
+    struct PendingFontRegistration
+    {
+        uint32_t id;
+        float sizePixels;
+        std::string filePath;
+        std::vector<uint8_t> compressedData;
     };
 
     struct ManagedTexture
@@ -87,6 +98,7 @@ private:
         std::vector<uint8_t> sourceData;       // RGBA32 pixel data for recreation
         IDirectDrawSurface7* surface;          // Can be nullptr if device lost
         bool needsRecreation;
+        bool pendingDestroy;
         bool useSystemMemory;
 
         ManagedTexture()
@@ -96,6 +108,7 @@ private:
             , creationGeneration(0)
             , surface(nullptr)
             , needsRecreation(false)
+            , pendingDestroy(false)
             , useSystemMemory(false) {}
     };
 
@@ -120,15 +133,18 @@ private:
     void RenderFrame_(IDirect3DDevice7* device);
     bool EnsureInitialized_();
     void InitializePanels_();
+    void ProcessPendingFontRegistrations_();
+    void ProcessPendingTextureReleases_();
     void SortPanels_();
     bool InstallWndProcHook_(HWND hwnd);
     void RemoveWndProcHook_();
     static LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     // Texture management helpers
+    bool RebuildFontAtlas_();
     bool CreateSurfaceForTexture_(ManagedTexture& tex);
     void OnDeviceLost_();
-    void OnDeviceRestored_();
+    bool OnDeviceRestored_();
     void InvalidateAllTextures_();
 
 private:
@@ -139,19 +155,25 @@ private:
     mutable std::mutex renderQueueMutex_;
 
     std::unordered_map<uint32_t, ManagedFont> fonts_;  // Key: font ID
+    std::vector<PendingFontRegistration> pendingFontRegistrations_;
+    bool fontAtlasRebuildPending_{false};
     mutable std::mutex fontsMutex_;
 
     std::unordered_map<uint32_t, ManagedTexture> textures_;  // Key: texture ID
+    std::vector<uint32_t> pendingTextureReleaseIds_;
     mutable std::mutex texturesMutex_;
 
+    ImGuiInitSettings initSettings_;
     HWND gameWindow_;
     WNDPROC originalWndProc_;
-    bool initialized_;
-    bool imguiInitialized_;
+    IDirect3DDevice7* lastKnownDevice_;
+    IDirectDraw7* lastKnownDDraw_;
+    std::atomic<bool> initialized_;
+    std::atomic<bool> imguiInitialized_;
     bool hookInstalled_;
     bool warnedNoDriver_;
     bool warnedMissingWindow_;
-    bool deviceLost_;
+    std::atomic<bool> deviceLost_;
     std::atomic<uint32_t> deviceGeneration_;
     uint32_t nextTextureId_;
 };

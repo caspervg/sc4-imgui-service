@@ -45,6 +45,7 @@ private:
     bool EndStroke_(bool commit);
     void CancelStroke_();
     bool PickWorld_(int32_t screenX, int32_t screenZ, RoadDecalPoint& outPoint);
+    bool SelectStrokeAtScreen_(int32_t screenX, int32_t screenZ);
     void UpdatePreviewFromScreen_(int32_t screenX, int32_t screenZ);
     void UpdateGridPreviewFromScreen_(int32_t screenX, int32_t screenZ);
     void UpdateHoverPreviewFromScreen_(int32_t screenX, int32_t screenZ);

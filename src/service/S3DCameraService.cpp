@@ -22,6 +22,10 @@ uint32_t S3DCameraService::Release() {
 }
 
 bool S3DCameraService::QueryInterface(const uint32_t riid, void** ppvObj) {
+    if (!ppvObj) {
+        return false;
+    }
+
     if (riid == GZIID_cIGZS3DCameraService) {
         *ppvObj = static_cast<cIGZS3DCameraService*>(this);
         AddRef();

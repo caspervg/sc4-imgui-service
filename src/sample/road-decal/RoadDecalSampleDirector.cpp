@@ -34,6 +34,8 @@ namespace
     bool gAutoAlign = true;
     bool gUseTypeDefaultColor = true;
     uint32_t gCustomColor = 0xE0FFFFFF;
+    float gEditMoveStep = 2.0f;
+    float gEditRotateStepDeg = 15.0f;
     char gSavePath[260] = "road_markups.dat";
 
     ImVec4 ColorToImVec4(uint32_t argb)
@@ -354,6 +356,52 @@ namespace
             }
 
             ImGui::Separator();
+            if (ImGui::CollapsingHeader("Selection / Edit", ImGuiTreeNodeFlags_DefaultOpen)) {
+                RoadMarkupStroke* selectedStroke = GetSelectedRoadMarkupStroke();
+                if (!selectedStroke) {
+                    ImGui::TextUnformatted("Ctrl+LMB on a marking to select it.");
+                } else {
+                    ImGui::Text("Selected Layer: %d  Stroke: %d", gSelectedLayerIndex + 1, gSelectedStrokeIndex + 1);
+                    ImGui::Text("Type: %s", GetRoadMarkupProperties(selectedStroke->type).displayName);
+
+                    ImGui::SliderFloat("Move Step", &gEditMoveStep, 0.25f, 8.0f, "%.2f m");
+                    ImGui::SliderFloat("Rotate Step", &gEditRotateStepDeg, 1.0f, 90.0f, "%.0f deg");
+
+                    if (ImGui::Button("Left")) {
+                        MoveSelectedRoadMarkupStroke(-gEditMoveStep, 0.0f);
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Right")) {
+                        MoveSelectedRoadMarkupStroke(gEditMoveStep, 0.0f);
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Forward")) {
+                        MoveSelectedRoadMarkupStroke(0.0f, gEditMoveStep);
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Back")) {
+                        MoveSelectedRoadMarkupStroke(0.0f, -gEditMoveStep);
+                    }
+
+                    if (ImGui::Button("Rotate -")) {
+                        RotateSelectedRoadMarkupStroke(-gEditRotateStepDeg * 3.1415926f / 180.0f);
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Rotate +")) {
+                        RotateSelectedRoadMarkupStroke(gEditRotateStepDeg * 3.1415926f / 180.0f);
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Delete Selected")) {
+                        DeleteSelectedRoadMarkupStroke();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Clear Selection")) {
+                        ClearRoadMarkupSelection();
+                    }
+                }
+            }
+
+            ImGui::Separator();
             if (ImGui::Button("Undo")) {
                 UndoLastRoadMarkupStroke();
                 RebuildRoadDecalGeometry();
@@ -365,6 +413,7 @@ namespace
             }
 
             if (ImGui::CollapsingHeader("Persistence")) {
+                ImGui::TextUnformatted("Format: cIGZSerializable stream (POC)");
                 ImGui::InputText("File", gSavePath, sizeof(gSavePath));
                 if (ImGui::Button("Save")) {
                     SaveMarkupsToFile(gSavePath);
@@ -376,7 +425,8 @@ namespace
             }
 
             ImGui::Text("Markings: %u", static_cast<uint32_t>(GetTotalRoadMarkupStrokeCount()));
-            ImGui::TextUnformatted("LMB: place/draw  RMB: finish/clear  ESC: cancel  Ctrl+Z: undo");
+            ImGui::TextUnformatted("LMB: place/draw  Ctrl+LMB: select  RMB: finish/clear  Del: delete selected/all");
+            ImGui::TextUnformatted("ESC: cancel  Ctrl+Z: undo");
 
             SyncToolSettings();
             ImGui::End();

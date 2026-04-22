@@ -104,6 +104,8 @@ struct RoadMarkupLayer
 
 extern std::vector<RoadMarkupLayer> gRoadMarkupLayers;
 extern int gActiveLayerIndex;
+extern int gSelectedLayerIndex;
+extern int gSelectedStrokeIndex;
 
 const RoadMarkupProperties& GetRoadMarkupProperties(RoadMarkupType type);
 RoadMarkupCategory GetMarkupCategory(RoadMarkupType type);
@@ -118,6 +120,15 @@ void UndoLastRoadMarkupStroke();
 void ClearAllRoadMarkupStrokes();
 size_t GetTotalRoadMarkupStrokeCount();
 
+bool SelectRoadMarkupStrokeAtPoint(const RoadDecalPoint& worldPoint, float maxDistanceMeters);
+void ClearRoadMarkupSelection();
+bool HasRoadMarkupSelection();
+RoadMarkupStroke* GetSelectedRoadMarkupStroke();
+const RoadMarkupStroke* GetSelectedRoadMarkupStrokeConst();
+bool DeleteSelectedRoadMarkupStroke();
+bool MoveSelectedRoadMarkupStroke(float deltaX, float deltaZ);
+bool RotateSelectedRoadMarkupStroke(float deltaRadians);
+
 void RebuildRoadDecalGeometry();
 void DrawRoadDecals();
 
@@ -127,6 +138,9 @@ void SetRoadDecalActiveStroke(const RoadMarkupStroke* stroke);
 // Shows a preview segment from last placed point to current mouse pick.
 void SetRoadDecalPreviewSegment(bool enabled,
                                 const RoadMarkupStroke& stroke);
+
+// Shows currently selected stroke with an accent highlight.
+void SetRoadDecalSelectedStroke(const RoadMarkupStroke* stroke);
 
 bool SaveMarkupsToFile(const char* filepath);
 bool LoadMarkupsFromFile(const char* filepath);

@@ -145,6 +145,12 @@ bool RoadDecalInputControl::OnMouseDownL(int32_t x, int32_t z, uint32_t modifier
         return false;
     }
 
+    if (!isDrawing_ && IsCtrlModifierActive(modifiers)) {
+        SelectStrokeAtScreen_(x, z);
+        RequestFullRedraw_();
+        return true;
+    }
+
     if (!isDrawing_) {
         return BeginStroke_(x, z, modifiers);
     }
@@ -227,8 +233,12 @@ bool RoadDecalInputControl::OnKeyDown(int32_t vkCode, uint32_t modifiers)
     }
 
     if (vkCode == VK_DELETE) {
-        CancelStroke_();
-        ClearAllStrokes_();
+        if (HasRoadMarkupSelection()) {
+            DeleteSelectedRoadMarkupStroke();
+        } else {
+            CancelStroke_();
+            ClearAllStrokes_();
+        }
         RebuildRoadDecalGeometry();
         RequestFullRedraw_();
         return true;
@@ -321,6 +331,20 @@ bool RoadDecalInputControl::PickWorld_(int32_t screenX, int32_t screenZ, RoadDec
     outPoint.y = worldCoords[1] + kDecalHeightOffset;
     outPoint.z = SnapToSubgrid(worldCoords[2]);
     return true;
+}
+
+bool RoadDecalInputControl::SelectStrokeAtScreen_(int32_t screenX, int32_t screenZ)
+{
+    RoadDecalPoint p{};
+    if (!PickWorld_(screenX, screenZ, p)) {
+        return false;
+    }
+
+    if (SelectRoadMarkupStrokeAtPoint(p, 2.5f)) {
+        return true;
+    }
+    ClearRoadMarkupSelection();
+    return false;
 }
 
 bool RoadDecalInputControl::BeginStroke_(int32_t screenX, int32_t screenZ, uint32_t modifiers)
@@ -461,6 +485,14 @@ void RoadDecalInputControl::UpdatePreviewFromScreen_(int32_t screenX, int32_t sc
         } else {
             preview.points[1] = p;
         }
+        if (autoAlign_ && preview.points.size() >= 2) {
+            const auto& a = preview.points[0];
+            const float dx = p.x - a.x;
+            const float dz = p.z - a.z;
+            if (std::fabs(dx) > kMinSampleDist || std::fabs(dz) > kMinSampleDist) {
+                preview.rotation = std::atan2(dz, dx);
+            }
+        }
     } else {
         // Freehand preview should extend from the last committed click to cursor.
         // Never overwrite the last committed point, or the path appears to "invert".
@@ -530,8 +562,10 @@ void RoadDecalInputControl::UpdateHoverPreviewFromScreen_(int32_t screenX, int32
     }
 
     // For line/two-point modes, preview a tiny starter segment around cursor.
+    // Use the current rotation so crossings do not "fake" +X orientation.
     RoadDecalPoint p2 = p;
-    p2.x += kSnapSubgridMeters;
+    p2.x += std::cos(preview.rotation) * kSnapSubgridMeters;
+    p2.z += std::sin(preview.rotation) * kSnapSubgridMeters;
     preview.points.push_back(p);
     preview.points.push_back(p2);
     SetRoadDecalPreviewSegment(true, preview);

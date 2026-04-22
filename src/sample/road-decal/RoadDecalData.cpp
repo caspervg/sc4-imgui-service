@@ -22,6 +22,10 @@
 #include "cISC4City.h"
 #include "cISTETerrain.h"
 #include "GZServPtrs.h"
+#include "cIGZIStream.h"
+#include "cIGZOStream.h"
+#include "cIGZSerializable.h"
+#include "cIGZVariant.h"
 #include "public/cIGZImGuiService.h"
 #include "utils/Logger.h"
 
@@ -35,6 +39,8 @@
 std::atomic<cIGZImGuiService*> gImGuiServiceForD3DOverlay{nullptr};
 std::vector<RoadMarkupLayer> gRoadMarkupLayers;
 int gActiveLayerIndex = 0;
+int gSelectedLayerIndex = -1;
+int gSelectedStrokeIndex = -1;
 
 namespace
 {
@@ -49,12 +55,8 @@ namespace
     constexpr uint32_t kGridColor = 0x30FFFFFF;
     constexpr uint32_t kMarkupFileMagic = 0x4B4D4452; // RDMK
     constexpr uint32_t kMarkupFileVersion = 1;
-
-    template<typename T>
-    bool WriteValue(std::ofstream& out, const T& value);
-
-    template<typename T>
-    bool ReadValue(std::ifstream& in, T& value);
+    constexpr uint32_t kRoadMarkupSerializableClsid = 0xA6D45122;
+    constexpr uint32_t kSelectionHighlightColor = 0xF000A5FF;
 
     struct RoadDecalStateGuard
     {
@@ -187,6 +189,13 @@ namespace
     std::vector<RoadDecalVertex> gRoadDecalActiveVertices;
     std::vector<RoadDecalVertex> gRoadDecalPreviewVertices;
     std::vector<RoadDecalVertex> gRoadDecalGridVertices;
+    std::vector<RoadDecalVertex> gRoadDecalSelectionVertices;
+
+    struct StrokeRef
+    {
+        int layerIndex = -1;
+        int strokeIndex = -1;
+    };
 
     constexpr std::array<RoadMarkupProperties, 25> kMarkupProps = {{
         {RoadMarkupType::SolidWhiteLine, RoadMarkupCategory::LaneDivider, "Solid White", "Continuous white lane divider.", 0.75f, 0.0f, 0xE0FFFFAA, false, false},
@@ -301,6 +310,273 @@ namespace
         const float dz = b.z - a.z;
         return std::sqrt(dx * dx + dy * dy + dz * dz);
     }
+
+    float DistanceXZToSegmentSquared(const RoadDecalPoint& p, const RoadDecalPoint& a, const RoadDecalPoint& b)
+    {
+        const float abX = b.x - a.x;
+        const float abZ = b.z - a.z;
+        const float apX = p.x - a.x;
+        const float apZ = p.z - a.z;
+        const float abLen2 = abX * abX + abZ * abZ;
+        if (abLen2 <= 1.0e-6f) {
+            return apX * apX + apZ * apZ;
+        }
+        const float t = std::clamp((apX * abX + apZ * abZ) / abLen2, 0.0f, 1.0f);
+        const float qx = a.x + abX * t;
+        const float qz = a.z + abZ * t;
+        const float dx = p.x - qx;
+        const float dz = p.z - qz;
+        return dx * dx + dz * dz;
+    }
+
+    float DistanceXZToStrokeSquared(const RoadDecalPoint& p, const RoadMarkupStroke& stroke)
+    {
+        if (stroke.points.empty()) {
+            return 1.0e12f;
+        }
+        if (stroke.points.size() == 1) {
+            const float dx = p.x - stroke.points[0].x;
+            const float dz = p.z - stroke.points[0].z;
+            return dx * dx + dz * dz;
+        }
+
+        float best = 1.0e12f;
+        for (size_t i = 1; i < stroke.points.size(); ++i) {
+            best = (std::min)(best, DistanceXZToSegmentSquared(p, stroke.points[i - 1], stroke.points[i]));
+        }
+        return best;
+    }
+
+    StrokeRef GetSelectedStrokeRef()
+    {
+        if (gSelectedLayerIndex < 0 || gSelectedLayerIndex >= static_cast<int>(gRoadMarkupLayers.size())) {
+            return {};
+        }
+        const auto& layer = gRoadMarkupLayers[static_cast<size_t>(gSelectedLayerIndex)];
+        if (gSelectedStrokeIndex < 0 || gSelectedStrokeIndex >= static_cast<int>(layer.strokes.size())) {
+            return {};
+        }
+        return {gSelectedLayerIndex, gSelectedStrokeIndex};
+    }
+
+    bool IsSelectionValid()
+    {
+        const StrokeRef ref = GetSelectedStrokeRef();
+        return ref.layerIndex >= 0 && ref.strokeIndex >= 0;
+    }
+
+    RoadMarkupStroke* GetStrokeByRef(const StrokeRef& ref)
+    {
+        if (ref.layerIndex < 0 || ref.strokeIndex < 0) {
+            return nullptr;
+        }
+        auto& layer = gRoadMarkupLayers[static_cast<size_t>(ref.layerIndex)];
+        if (ref.strokeIndex >= static_cast<int>(layer.strokes.size())) {
+            return nullptr;
+        }
+        return &layer.strokes[static_cast<size_t>(ref.strokeIndex)];
+    }
+
+    class FileOStream final : public cIGZOStream
+    {
+    public:
+        explicit FileOStream(std::ofstream& out)
+            : out_(out)
+        {
+        }
+
+        bool QueryInterface(uint32_t riid, void** ppvObj) override
+        {
+            if (!ppvObj) {
+                return false;
+            }
+            if (riid == GZIID_cIGZUnknown) {
+                *ppvObj = static_cast<cIGZUnknown*>(this);
+                AddRef();
+                return true;
+            }
+            *ppvObj = nullptr;
+            return false;
+        }
+
+        uint32_t AddRef() override { return ++refCount_; }
+        uint32_t Release() override
+        {
+            const uint32_t n = --refCount_;
+            if (n == 0) {
+                delete this;
+            }
+            return n;
+        }
+
+        void Flush() override { out_.flush(); }
+        bool SetSint8(int8_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetUint8(uint8_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetSint16(int16_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetUint16(uint16_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetSint32(int32_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetUint32(uint32_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetSint64(int64_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetUint64(uint64_t v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetFloat32(float v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetFloat64(double v) override { return WriteRaw_(&v, sizeof(v)); }
+        bool SetRZCharStr(const char*) override { error_ = 1; return false; }
+        bool SetGZStr(cIGZString const&) override { error_ = 1; return false; }
+        bool SetGZSerializable(cIGZSerializable const& sData) override
+        {
+            // cIGZSerializable::Write is non-const in the SDK interface.
+            return const_cast<cIGZSerializable&>(sData).Write(*this);
+        }
+        bool SetVoid(void const* pData, uint32_t size) override
+        {
+            return WriteRaw_(pData, size);
+        }
+        int32_t GetError() override { return error_; }
+        int32_t SetUserData(cIGZVariant* pData) override
+        {
+            userData_ = reinterpret_cast<intptr_t>(pData);
+            return 0;
+        }
+        int32_t GetUserData() override { return static_cast<int32_t>(userData_); }
+
+    private:
+        bool WriteRaw_(void const* pData, uint32_t size)
+        {
+            out_.write(reinterpret_cast<const char*>(pData), size);
+            if (!out_.good()) {
+                error_ = 1;
+                return false;
+            }
+            return true;
+        }
+
+        std::atomic<uint32_t> refCount_{1};
+        std::ofstream& out_;
+        int32_t error_ = 0;
+        intptr_t userData_ = 0;
+    };
+
+    class FileIStream final : public cIGZIStream
+    {
+    public:
+        explicit FileIStream(std::ifstream& in)
+            : in_(in)
+        {
+        }
+
+        bool QueryInterface(uint32_t riid, void** ppvObj) override
+        {
+            if (!ppvObj) {
+                return false;
+            }
+            if (riid == GZIID_cIGZUnknown) {
+                *ppvObj = static_cast<cIGZUnknown*>(this);
+                AddRef();
+                return true;
+            }
+            *ppvObj = nullptr;
+            return false;
+        }
+
+        uint32_t AddRef() override { return ++refCount_; }
+        uint32_t Release() override
+        {
+            const uint32_t n = --refCount_;
+            if (n == 0) {
+                delete this;
+            }
+            return n;
+        }
+
+        bool Skip(uint32_t bytes) override
+        {
+            in_.seekg(bytes, std::ios::cur);
+            if (!in_.good()) {
+                error_ = 1;
+                return false;
+            }
+            return true;
+        }
+
+        bool GetSint8(int8_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetUint8(uint8_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetSint16(int16_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetUint16(uint16_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetSint32(int32_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetUint32(uint32_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetSint64(int64_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetUint64(uint64_t& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetFloat32(float& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetFloat64(double& v) override { return ReadRaw_(&v, sizeof(v)); }
+        bool GetRZCharStr(char*, uint32_t) override { error_ = 1; return false; }
+        bool GetGZStr(cIGZString&) override { error_ = 1; return false; }
+        bool GetGZSerializable(cIGZSerializable& sData) override
+        {
+            return sData.Read(*this);
+        }
+        bool GetVoid(void* pDataOut, uint32_t size) override
+        {
+            return ReadRaw_(pDataOut, size);
+        }
+        int32_t GetError() override { return error_; }
+        int32_t SetUserData(cIGZVariant* pData) override
+        {
+            userData_ = reinterpret_cast<intptr_t>(pData);
+            return 0;
+        }
+        int32_t GetUserData() override { return static_cast<int32_t>(userData_); }
+
+    private:
+        bool ReadRaw_(void* pDataOut, uint32_t size)
+        {
+            in_.read(reinterpret_cast<char*>(pDataOut), size);
+            if (!in_.good()) {
+                error_ = 1;
+                return false;
+            }
+            return true;
+        }
+
+        std::atomic<uint32_t> refCount_{1};
+        std::ifstream& in_;
+        int32_t error_ = 0;
+        intptr_t userData_ = 0;
+    };
+
+    class RoadMarkupSerializable final : public cIGZSerializable
+    {
+    public:
+        bool QueryInterface(uint32_t riid, void** ppvObj) override
+        {
+            if (!ppvObj) {
+                return false;
+            }
+            if (riid == GZIID_cIGZUnknown || riid == GZIID_cIGZSerializable) {
+                *ppvObj = static_cast<cIGZSerializable*>(this);
+                AddRef();
+                return true;
+            }
+            *ppvObj = nullptr;
+            return false;
+        }
+
+        uint32_t AddRef() override { return ++refCount_; }
+        uint32_t Release() override
+        {
+            const uint32_t n = --refCount_;
+            if (n == 0) {
+                delete this;
+            }
+            return n;
+        }
+
+        bool Write(cIGZOStream& stream) override;
+        bool Read(cIGZIStream& stream) override;
+        uint32_t GetGZCLSID() override { return kRoadMarkupSerializableClsid; }
+
+    private:
+        std::atomic<uint32_t> refCount_{1};
+    };
 
     RoadDecalPoint LerpByT(const RoadDecalPoint& a, const RoadDecalPoint& b, float ta, float tb, float t)
     {
@@ -634,8 +910,9 @@ namespace
         // - stroke.length controls crossing depth (visual width along road)
         const float span = length;
         const float depth = std::max(stripe, stroke.length);
-        const float firstOffset = -0.5f * depth;
         const int stripes = std::max(1, static_cast<int>(std::floor((depth + gap) / (stripe + gap))));
+        const float usedDepth = static_cast<float>(stripes) * stripe + static_cast<float>(stripes - 1) * gap;
+        const float firstOffset = -0.5f * usedDepth + stripe * 0.5f;
         const RoadDecalPoint center{
             (start.x + end.x) * 0.5f,
             (start.y + end.y) * 0.5f,
@@ -644,7 +921,7 @@ namespace
         };
 
         for (int i = 0; i < stripes; ++i) {
-            const float offset = firstOffset + i * (stripe + gap) + stripe * 0.5f;
+            const float offset = firstOffset + static_cast<float>(i) * (stripe + gap);
             const RoadDecalPoint a{
                 center.x + perpX * offset - tx * (span * 0.5f),
                 center.y,
@@ -661,28 +938,30 @@ namespace
         }
 
         if (ladderRails) {
+            const float railLeft = -0.5f * depth;
+            const float railRight = 0.5f * depth;
             const RoadDecalPoint l0{
-                center.x + perpX * firstOffset - tx * (span * 0.5f),
+                center.x + perpX * railLeft - tx * (span * 0.5f),
                 center.y,
-                center.z + perpZ * firstOffset - tz * (span * 0.5f),
+                center.z + perpZ * railLeft - tz * (span * 0.5f),
                 false
             };
             const RoadDecalPoint l1{
-                center.x + perpX * firstOffset + tx * (span * 0.5f),
+                center.x + perpX * railLeft + tx * (span * 0.5f),
                 center.y,
-                center.z + perpZ * firstOffset + tz * (span * 0.5f),
+                center.z + perpZ * railLeft + tz * (span * 0.5f),
                 false
             };
             const RoadDecalPoint r0{
-                center.x + perpX * (firstOffset + depth) - tx * (span * 0.5f),
+                center.x + perpX * railRight - tx * (span * 0.5f),
                 center.y,
-                center.z + perpZ * (firstOffset + depth) - tz * (span * 0.5f),
+                center.z + perpZ * railRight - tz * (span * 0.5f),
                 false
             };
             const RoadDecalPoint r1{
-                center.x + perpX * (firstOffset + depth) + tx * (span * 0.5f),
+                center.x + perpX * railRight + tx * (span * 0.5f),
                 center.y,
-                center.z + perpZ * (firstOffset + depth) + tz * (span * 0.5f),
+                center.z + perpZ * railRight + tz * (span * 0.5f),
                 false
             };
             BuildLine({l0, l1}, stripe * 0.5f, color, false, 0.0f, 0.0f, outVerts);
@@ -793,7 +1072,13 @@ void DeleteActiveRoadMarkupLayer()
     EnsureDefaultRoadMarkupLayer();
     if (gRoadMarkupLayers.size() <= 1) {
         gRoadMarkupLayers[0].strokes.clear();
+        ClearRoadMarkupSelection();
         return;
+    }
+    if (gSelectedLayerIndex == gActiveLayerIndex) {
+        ClearRoadMarkupSelection();
+    } else if (gSelectedLayerIndex > gActiveLayerIndex) {
+        --gSelectedLayerIndex;
     }
     gRoadMarkupLayers.erase(gRoadMarkupLayers.begin() + gActiveLayerIndex);
     gActiveLayerIndex = std::clamp(gActiveLayerIndex, 0, static_cast<int>(gRoadMarkupLayers.size()) - 1);
@@ -817,6 +1102,10 @@ void UndoLastRoadMarkupStroke()
     if (!layer || layer->strokes.empty()) {
         return;
     }
+    if (gSelectedLayerIndex == gActiveLayerIndex &&
+        gSelectedStrokeIndex == static_cast<int>(layer->strokes.size()) - 1) {
+        ClearRoadMarkupSelection();
+    }
     layer->strokes.pop_back();
 }
 
@@ -826,6 +1115,7 @@ void ClearAllRoadMarkupStrokes()
     for (auto& layer : gRoadMarkupLayers) {
         layer.strokes.clear();
     }
+    ClearRoadMarkupSelection();
 }
 
 size_t GetTotalRoadMarkupStrokeCount()
@@ -835,6 +1125,133 @@ size_t GetTotalRoadMarkupStrokeCount()
         total += layer.strokes.size();
     }
     return total;
+}
+
+bool SelectRoadMarkupStrokeAtPoint(const RoadDecalPoint& worldPoint, float maxDistanceMeters)
+{
+    EnsureDefaultRoadMarkupLayer();
+    const float maxDistance2 = (std::max)(0.1f, maxDistanceMeters) * (std::max)(0.1f, maxDistanceMeters);
+    float bestDistance2 = maxDistance2;
+    StrokeRef best{};
+
+    for (size_t layerIndex = 0; layerIndex < gRoadMarkupLayers.size(); ++layerIndex) {
+        const auto& layer = gRoadMarkupLayers[layerIndex];
+        if (!layer.visible || layer.locked) {
+            continue;
+        }
+        for (size_t strokeIndex = 0; strokeIndex < layer.strokes.size(); ++strokeIndex) {
+            const auto& stroke = layer.strokes[strokeIndex];
+            if (!stroke.visible) {
+                continue;
+            }
+            const float distance2 = DistanceXZToStrokeSquared(worldPoint, stroke);
+            if (distance2 <= bestDistance2) {
+                bestDistance2 = distance2;
+                best.layerIndex = static_cast<int>(layerIndex);
+                best.strokeIndex = static_cast<int>(strokeIndex);
+            }
+        }
+    }
+
+    if (best.layerIndex < 0 || best.strokeIndex < 0) {
+        return false;
+    }
+
+    gSelectedLayerIndex = best.layerIndex;
+    gSelectedStrokeIndex = best.strokeIndex;
+    gActiveLayerIndex = best.layerIndex;
+    SetRoadDecalSelectedStroke(GetSelectedRoadMarkupStrokeConst());
+    return true;
+}
+
+void ClearRoadMarkupSelection()
+{
+    gSelectedLayerIndex = -1;
+    gSelectedStrokeIndex = -1;
+    SetRoadDecalSelectedStroke(nullptr);
+}
+
+bool HasRoadMarkupSelection()
+{
+    return IsSelectionValid();
+}
+
+RoadMarkupStroke* GetSelectedRoadMarkupStroke()
+{
+    return GetStrokeByRef(GetSelectedStrokeRef());
+}
+
+const RoadMarkupStroke* GetSelectedRoadMarkupStrokeConst()
+{
+    const StrokeRef ref = GetSelectedStrokeRef();
+    if (ref.layerIndex < 0 || ref.strokeIndex < 0) {
+        return nullptr;
+    }
+    return &gRoadMarkupLayers[static_cast<size_t>(ref.layerIndex)].strokes[static_cast<size_t>(ref.strokeIndex)];
+}
+
+bool DeleteSelectedRoadMarkupStroke()
+{
+    const StrokeRef ref = GetSelectedStrokeRef();
+    if (ref.layerIndex < 0 || ref.strokeIndex < 0) {
+        return false;
+    }
+    auto& layer = gRoadMarkupLayers[static_cast<size_t>(ref.layerIndex)];
+    if (layer.locked || ref.strokeIndex >= static_cast<int>(layer.strokes.size())) {
+        return false;
+    }
+    layer.strokes.erase(layer.strokes.begin() + ref.strokeIndex);
+    ClearRoadMarkupSelection();
+    RebuildRoadDecalGeometry();
+    return true;
+}
+
+bool MoveSelectedRoadMarkupStroke(float deltaX, float deltaZ)
+{
+    auto* stroke = GetSelectedRoadMarkupStroke();
+    if (!stroke || stroke->points.empty()) {
+        return false;
+    }
+    for (auto& p : stroke->points) {
+        p.x += deltaX;
+        p.z += deltaZ;
+    }
+    ConformPointsToTerrain(stroke->points);
+    SetRoadDecalSelectedStroke(stroke);
+    RebuildRoadDecalGeometry();
+    return true;
+}
+
+bool RotateSelectedRoadMarkupStroke(float deltaRadians)
+{
+    auto* stroke = GetSelectedRoadMarkupStroke();
+    if (!stroke || stroke->points.empty()) {
+        return false;
+    }
+
+    float centerX = 0.0f;
+    float centerZ = 0.0f;
+    for (const auto& p : stroke->points) {
+        centerX += p.x;
+        centerZ += p.z;
+    }
+    const float inv = 1.0f / static_cast<float>(stroke->points.size());
+    centerX *= inv;
+    centerZ *= inv;
+
+    const float s = std::sin(deltaRadians);
+    const float c = std::cos(deltaRadians);
+    for (auto& p : stroke->points) {
+        const float x = p.x - centerX;
+        const float z = p.z - centerZ;
+        p.x = centerX + (x * c - z * s);
+        p.z = centerZ + (x * s + z * c);
+    }
+    stroke->rotation += deltaRadians;
+    ConformPointsToTerrain(stroke->points);
+    SetRoadDecalSelectedStroke(stroke);
+    RebuildRoadDecalGeometry();
+    return true;
 }
 
 void RebuildRoadDecalGeometry()
@@ -862,6 +1279,7 @@ void RebuildRoadDecalGeometry()
             BuildStrokeVertices(stroke, gRoadDecalVertices);
         }
     }
+    SetRoadDecalSelectedStroke(GetSelectedRoadMarkupStrokeConst());
 }
 
 void DrawRoadDecals()
@@ -869,7 +1287,8 @@ void DrawRoadDecals()
     if (gRoadDecalVertices.empty() &&
         gRoadDecalActiveVertices.empty() &&
         gRoadDecalPreviewVertices.empty() &&
-        gRoadDecalGridVertices.empty()) {
+        gRoadDecalGridVertices.empty() &&
+        gRoadDecalSelectionVertices.empty()) {
         return;
     }
 
@@ -917,6 +1336,7 @@ void DrawRoadDecals()
         device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 
         DrawVertexBuffer(device, gRoadDecalVertices);
+        DrawVertexBuffer(device, gRoadDecalSelectionVertices);
         DrawVertexBuffer(device, gRoadDecalActiveVertices);
         DrawVertexBuffer(device, gRoadDecalPreviewVertices);
         DrawVertexBuffer(device, gRoadDecalGridVertices);
@@ -939,6 +1359,22 @@ void SetRoadDecalPreviewSegment(bool enabled, const RoadMarkupStroke& stroke)
     if (enabled) {
         BuildStrokeVertices(stroke, gRoadDecalPreviewVertices);
     }
+}
+
+void SetRoadDecalSelectedStroke(const RoadMarkupStroke* stroke)
+{
+    gRoadDecalSelectionVertices.clear();
+    if (!stroke) {
+        return;
+    }
+
+    RoadMarkupStroke highlight = *stroke;
+    highlight.color = kSelectionHighlightColor;
+    highlight.opacity = 1.0f;
+    if (GetMarkupCategory(highlight.type) == RoadMarkupCategory::LaneDivider) {
+        highlight.width += 0.20f;
+    }
+    BuildStrokeVertices(highlight, gRoadDecalSelectionVertices);
 }
 
 void SetRoadDecalGridPreview(bool enabled, const RoadDecalPoint& centerPoint)
@@ -1009,62 +1445,9 @@ bool SaveMarkupsToFile(const char* filepath)
         return false;
     }
 
-    if (!WriteValue(out, kMarkupFileMagic) || !WriteValue(out, kMarkupFileVersion)) {
-        return false;
-    }
-
-    const uint32_t layerCount = static_cast<uint32_t>(gRoadMarkupLayers.size());
-    if (!WriteValue(out, layerCount)) {
-        return false;
-    }
-    for (const auto& layer : gRoadMarkupLayers) {
-        const uint32_t nameLen = static_cast<uint32_t>(layer.name.size());
-        const uint8_t visible = layer.visible ? 1 : 0;
-        const uint8_t locked = layer.locked ? 1 : 0;
-        const uint32_t strokeCount = static_cast<uint32_t>(layer.strokes.size());
-        if (!WriteValue(out, layer.id) ||
-            !WriteValue(out, nameLen) ||
-            !WriteValue(out, visible) ||
-            !WriteValue(out, locked) ||
-            !WriteValue(out, layer.renderOrder) ||
-            !WriteValue(out, strokeCount)) {
-            return false;
-        }
-        out.write(layer.name.data(), nameLen);
-        if (!out.good()) {
-            return false;
-        }
-        for (const auto& stroke : layer.strokes) {
-            const uint32_t type = static_cast<uint32_t>(stroke.type);
-            const uint32_t pointCount = static_cast<uint32_t>(stroke.points.size());
-            const uint8_t dashed = stroke.dashed ? 1 : 0;
-            const uint8_t strokeVisible = stroke.visible ? 1 : 0;
-            if (!WriteValue(out, type) ||
-                !WriteValue(out, pointCount) ||
-                !WriteValue(out, stroke.width) ||
-                !WriteValue(out, stroke.length) ||
-                !WriteValue(out, stroke.rotation) ||
-                !WriteValue(out, dashed) ||
-                !WriteValue(out, stroke.dashLength) ||
-                !WriteValue(out, stroke.gapLength) ||
-                !WriteValue(out, stroke.color) ||
-                !WriteValue(out, stroke.opacity) ||
-                !WriteValue(out, strokeVisible) ||
-                !WriteValue(out, stroke.layerId)) {
-                return false;
-            }
-            for (const auto& point : stroke.points) {
-                const uint8_t hardCorner = point.hardCorner ? 1 : 0;
-                if (!WriteValue(out, point.x) ||
-                    !WriteValue(out, point.y) ||
-                    !WriteValue(out, point.z) ||
-                    !WriteValue(out, hardCorner)) {
-                    return false;
-                }
-            }
-        }
-    }
-    return true;
+    FileOStream stream(out);
+    RoadMarkupSerializable serializable;
+    return stream.SetGZSerializable(serializable) && stream.GetError() == 0;
 }
 
 bool LoadMarkupsFromFile(const char* filepath)
@@ -1077,94 +1460,183 @@ bool LoadMarkupsFromFile(const char* filepath)
         return false;
     }
 
-    uint32_t magic = 0;
-    uint32_t version = 0;
-    if (!ReadValue(in, magic) || !ReadValue(in, version)) {
-        return false;
-    }
-    if (magic != kMarkupFileMagic || version != kMarkupFileVersion) {
+    FileIStream stream(in);
+    RoadMarkupSerializable serializable;
+    if (!stream.GetGZSerializable(serializable) || stream.GetError() != 0) {
         return false;
     }
 
-    uint32_t layerCount = 0;
-    if (!ReadValue(in, layerCount)) {
-        return false;
-    }
-
-    std::vector<RoadMarkupLayer> layers;
-    layers.reserve(layerCount);
-
-    for (uint32_t i = 0; i < layerCount; ++i) {
-        RoadMarkupLayer layer{};
-        uint32_t nameLen = 0;
-        uint8_t visible = 0;
-        uint8_t locked = 0;
-        uint32_t strokeCount = 0;
-        if (!ReadValue(in, layer.id) ||
-            !ReadValue(in, nameLen) ||
-            !ReadValue(in, visible) ||
-            !ReadValue(in, locked) ||
-            !ReadValue(in, layer.renderOrder) ||
-            !ReadValue(in, strokeCount)) {
-            return false;
-        }
-        layer.visible = visible != 0;
-        layer.locked = locked != 0;
-        layer.name.resize(nameLen);
-        in.read(layer.name.data(), nameLen);
-        if (!in.good()) {
-            return false;
-        }
-        layer.strokes.reserve(strokeCount);
-        for (uint32_t s = 0; s < strokeCount; ++s) {
-            RoadMarkupStroke stroke{};
-            uint32_t type = 0;
-            uint32_t pointCount = 0;
-            uint8_t dashed = 0;
-            uint8_t strokeVisible = 0;
-            if (!ReadValue(in, type) ||
-                !ReadValue(in, pointCount) ||
-                !ReadValue(in, stroke.width) ||
-                !ReadValue(in, stroke.length) ||
-                !ReadValue(in, stroke.rotation) ||
-                !ReadValue(in, dashed) ||
-                !ReadValue(in, stroke.dashLength) ||
-                !ReadValue(in, stroke.gapLength) ||
-                !ReadValue(in, stroke.color) ||
-                !ReadValue(in, stroke.opacity) ||
-                !ReadValue(in, strokeVisible) ||
-                !ReadValue(in, stroke.layerId)) {
-                return false;
-            }
-            stroke.type = static_cast<RoadMarkupType>(type);
-            stroke.dashed = dashed != 0;
-            stroke.visible = strokeVisible != 0;
-            stroke.points.reserve(pointCount);
-            for (uint32_t p = 0; p < pointCount; ++p) {
-                RoadDecalPoint point{};
-                uint8_t hardCorner = 0;
-                if (!ReadValue(in, point.x) ||
-                    !ReadValue(in, point.y) ||
-                    !ReadValue(in, point.z) ||
-                    !ReadValue(in, hardCorner)) {
-                    return false;
-                }
-                point.hardCorner = hardCorner != 0;
-                stroke.points.push_back(point);
-            }
-            layer.strokes.push_back(stroke);
-        }
-        layers.push_back(std::move(layer));
-    }
-
-    gRoadMarkupLayers = std::move(layers);
     EnsureDefaultRoadMarkupLayer();
+    gActiveLayerIndex = std::clamp(gActiveLayerIndex, 0, static_cast<int>(gRoadMarkupLayers.size()) - 1);
+    if (!IsSelectionValid()) {
+        ClearRoadMarkupSelection();
+    }
     RebuildRoadDecalGeometry();
     return true;
 }
 
 namespace
 {
+    bool RoadMarkupSerializable::Write(cIGZOStream& stream)
+    {
+        if (stream.GetError() != 0) {
+            return false;
+        }
+
+        if (!stream.SetUint32(kMarkupFileMagic) ||
+            !stream.SetUint32(kMarkupFileVersion)) {
+            return false;
+        }
+
+        const uint32_t layerCount = static_cast<uint32_t>(gRoadMarkupLayers.size());
+        if (!stream.SetUint32(layerCount) ||
+            !stream.SetSint32(gActiveLayerIndex) ||
+            !stream.SetSint32(gSelectedLayerIndex) ||
+            !stream.SetSint32(gSelectedStrokeIndex)) {
+            return false;
+        }
+
+        for (const auto& layer : gRoadMarkupLayers) {
+            const uint32_t nameLen = static_cast<uint32_t>(layer.name.size());
+            if (!stream.SetUint32(layer.id) ||
+                !stream.SetUint32(nameLen) ||
+                !stream.SetUint8(layer.visible ? 1 : 0) ||
+                !stream.SetUint8(layer.locked ? 1 : 0) ||
+                !stream.SetSint32(layer.renderOrder) ||
+                !stream.SetUint32(static_cast<uint32_t>(layer.strokes.size()))) {
+                return false;
+            }
+
+            if (nameLen > 0 && !stream.SetVoid(layer.name.data(), nameLen)) {
+                return false;
+            }
+
+            for (const auto& stroke : layer.strokes) {
+                if (!stream.SetUint32(static_cast<uint32_t>(stroke.type)) ||
+                    !stream.SetUint32(static_cast<uint32_t>(stroke.points.size())) ||
+                    !stream.SetFloat32(stroke.width) ||
+                    !stream.SetFloat32(stroke.length) ||
+                    !stream.SetFloat32(stroke.rotation) ||
+                    !stream.SetUint8(stroke.dashed ? 1 : 0) ||
+                    !stream.SetFloat32(stroke.dashLength) ||
+                    !stream.SetFloat32(stroke.gapLength) ||
+                    !stream.SetUint32(stroke.color) ||
+                    !stream.SetFloat32(stroke.opacity) ||
+                    !stream.SetUint8(stroke.visible ? 1 : 0) ||
+                    !stream.SetUint32(stroke.layerId)) {
+                    return false;
+                }
+
+                for (const auto& point : stroke.points) {
+                    if (!stream.SetFloat32(point.x) ||
+                        !stream.SetFloat32(point.y) ||
+                        !stream.SetFloat32(point.z) ||
+                        !stream.SetUint8(point.hardCorner ? 1 : 0)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return stream.GetError() == 0;
+    }
+
+    bool RoadMarkupSerializable::Read(cIGZIStream& stream)
+    {
+        if (stream.GetError() != 0) {
+            return false;
+        }
+
+        uint32_t magic = 0;
+        uint32_t version = 0;
+        uint32_t layerCount = 0;
+        int32_t activeLayerIndex = 0;
+        int32_t selectedLayerIndex = -1;
+        int32_t selectedStrokeIndex = -1;
+        if (!stream.GetUint32(magic) ||
+            !stream.GetUint32(version) ||
+            !stream.GetUint32(layerCount) ||
+            !stream.GetSint32(activeLayerIndex) ||
+            !stream.GetSint32(selectedLayerIndex) ||
+            !stream.GetSint32(selectedStrokeIndex) ||
+            magic != kMarkupFileMagic ||
+            version != kMarkupFileVersion) {
+            return false;
+        }
+
+        std::vector<RoadMarkupLayer> layers;
+        layers.reserve(layerCount);
+        for (uint32_t i = 0; i < layerCount; ++i) {
+            RoadMarkupLayer layer{};
+            uint32_t nameLen = 0;
+            uint8_t visible = 0;
+            uint8_t locked = 0;
+            uint32_t strokeCount = 0;
+            if (!stream.GetUint32(layer.id) ||
+                !stream.GetUint32(nameLen) ||
+                !stream.GetUint8(visible) ||
+                !stream.GetUint8(locked) ||
+                !stream.GetSint32(layer.renderOrder) ||
+                !stream.GetUint32(strokeCount)) {
+                return false;
+            }
+            layer.visible = visible != 0;
+            layer.locked = locked != 0;
+            layer.name.assign(nameLen, '\0');
+            if (nameLen > 0 && !stream.GetVoid(layer.name.data(), nameLen)) {
+                return false;
+            }
+
+            layer.strokes.reserve(strokeCount);
+            for (uint32_t s = 0; s < strokeCount; ++s) {
+                RoadMarkupStroke stroke{};
+                uint32_t type = 0;
+                uint32_t pointCount = 0;
+                uint8_t dashed = 0;
+                uint8_t strokeVisible = 0;
+                if (!stream.GetUint32(type) ||
+                    !stream.GetUint32(pointCount) ||
+                    !stream.GetFloat32(stroke.width) ||
+                    !stream.GetFloat32(stroke.length) ||
+                    !stream.GetFloat32(stroke.rotation) ||
+                    !stream.GetUint8(dashed) ||
+                    !stream.GetFloat32(stroke.dashLength) ||
+                    !stream.GetFloat32(stroke.gapLength) ||
+                    !stream.GetUint32(stroke.color) ||
+                    !stream.GetFloat32(stroke.opacity) ||
+                    !stream.GetUint8(strokeVisible) ||
+                    !stream.GetUint32(stroke.layerId)) {
+                    return false;
+                }
+                stroke.type = static_cast<RoadMarkupType>(type);
+                stroke.dashed = dashed != 0;
+                stroke.visible = strokeVisible != 0;
+                stroke.points.reserve(pointCount);
+
+                for (uint32_t p = 0; p < pointCount; ++p) {
+                    RoadDecalPoint point{};
+                    uint8_t hardCorner = 0;
+                    if (!stream.GetFloat32(point.x) ||
+                        !stream.GetFloat32(point.y) ||
+                        !stream.GetFloat32(point.z) ||
+                        !stream.GetUint8(hardCorner)) {
+                        return false;
+                    }
+                    point.hardCorner = hardCorner != 0;
+                    stroke.points.push_back(point);
+                }
+                layer.strokes.push_back(std::move(stroke));
+            }
+            layers.push_back(std::move(layer));
+        }
+
+        gRoadMarkupLayers = std::move(layers);
+        gActiveLayerIndex = activeLayerIndex;
+        gSelectedLayerIndex = selectedLayerIndex;
+        gSelectedStrokeIndex = selectedStrokeIndex;
+        return stream.GetError() == 0;
+    }
+
     void BuildStrokeVertices(const RoadMarkupStroke& stroke, std::vector<RoadDecalVertex>& outVerts)
     {
         if (!stroke.visible || stroke.points.empty()) {
@@ -1284,17 +1756,4 @@ namespace
         }
     }
 
-    template<typename T>
-    bool WriteValue(std::ofstream& out, const T& value)
-    {
-        out.write(reinterpret_cast<const char*>(&value), sizeof(T));
-        return out.good();
-    }
-
-    template<typename T>
-    bool ReadValue(std::ifstream& in, T& value)
-    {
-        in.read(reinterpret_cast<char*>(&value), sizeof(T));
-        return in.good();
-    }
 }

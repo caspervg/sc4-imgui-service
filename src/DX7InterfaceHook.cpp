@@ -1,6 +1,8 @@
 #include "DX7InterfaceHook.h"
 
 #include <atomic>
+#include <d3d.h>
+#include <filesystem>
 #include <Windows.h>
 
 #include "imgui.h"
@@ -73,7 +75,7 @@ bool DX7InterfaceHook::CaptureInterface(cIGZGDriver* pDriver)
     return candidate != nullptr;
 }
 
-bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
+bool DX7InterfaceHook::InitializeImGui(const HWND hwnd, const ImGuiInitSettings& settings)
 {
     auto* d3dx = s_pD3DX.load(std::memory_order_acquire);
     if (!d3dx || !hwnd || !IsWindow(hwnd)) {
@@ -84,31 +86,6 @@ bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
         return false;
     }
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
-    ImGui::StyleColorsDark();
-
-    // Configure font with improved rendering
-    ImFontConfig fontConfig;
-    fontConfig.OversampleH = 2;  // Horizontal oversampling for crisper text
-    fontConfig.OversampleV = 2;  // Vertical oversampling for crisper text
-    fontConfig.PixelSnapH = true;  // Snap to pixel grid for sharper rendering
-    fontConfig.GlyphExtraAdvanceX = 0.0f;
-
-    // Load ProggyClean font
-    ImFont* font = io.Fonts->AddFontFromMemoryCompressedTTF(ProggyVector_compressed_data, ProggyVector_compressed_size, 13.0f, &fontConfig);
-    if (font) {
-        io.FontDefault = font;
-        LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded custom font");
-    } else {
-        LOG_WARN("DX7InterfaceHook::InitializeImGui: failed to load custom font, will use the d3d7imgui default");
-    }
-
-    ImGui_ImplWin32_Init(hwnd);
-
     auto* d3dDevice = d3dx->GetD3DDevice();
     auto* dd = d3dx->GetDD();
     if (!d3dDevice || !dd) {
@@ -117,8 +94,113 @@ bool DX7InterfaceHook::InitializeImGui(const HWND hwnd)
             static_cast<void*>(dd));
         return false;
     }
-    ImGui_ImplDX7_Init(d3dDevice, dd);
-    ImGui_ImplDX7_CreateDeviceObjects();
+
+    if (ImGui::GetCurrentContext()) {
+        ImGuiIO& existingIo = ImGui::GetIO();
+        if (existingIo.BackendRendererUserData) {
+            ImGui_ImplDX7_Shutdown();
+        }
+        if (existingIo.BackendPlatformUserData) {
+            ImGui_ImplWin32_Shutdown();
+        }
+        ImGui::DestroyContext();
+        LOG_WARN("DX7InterfaceHook::InitializeImGui: destroyed stale ImGui state before reinitializing");
+    }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    bool win32Initialized = false;
+    bool dx7Initialized = false;
+
+    const auto cleanupOnFailure = [&]() {
+        if (dx7Initialized) {
+            ImGui_ImplDX7_Shutdown();
+        }
+        if (win32Initialized) {
+            ImGui_ImplWin32_Shutdown();
+        }
+        if (ImGui::GetCurrentContext()) {
+            ImGui::DestroyContext();
+        }
+    };
+
+    if (settings.keyboardNav) {
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    }
+
+    // Apply theme
+    if (settings.theme == "light") {
+        ImGui::StyleColorsLight();
+    } else if (settings.theme == "classic") {
+        ImGui::StyleColorsClassic();
+    } else {
+        ImGui::StyleColorsDark();
+    }
+
+    // Apply UI scale
+    if (settings.uiScale != 1.0f) {
+        ImGui::GetStyle().ScaleAllSizes(settings.uiScale);
+    }
+
+    // Configure font rendering
+    ImFontConfig fontConfig;
+    fontConfig.OversampleH = settings.fontOversample;
+    fontConfig.OversampleV = settings.fontOversample;
+    fontConfig.PixelSnapH = true;
+    fontConfig.GlyphExtraAdvanceX = 0.0f;
+
+    const float scaledFontSize = settings.fontSize * settings.uiScale;
+
+    // Load font: custom TTF file or built-in ProggyVector
+    ImFont* font = nullptr;
+    if (!settings.fontFile.empty()) {
+        const std::filesystem::path fontPath(settings.fontFile);
+        if (std::filesystem::exists(fontPath)) {
+            font = io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), scaledFontSize, &fontConfig);
+            if (font) {
+                LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded custom font from {}", fontPath.string());
+            } else {
+                LOG_WARN("DX7InterfaceHook::InitializeImGui: failed to load font from {}, falling back to built-in", fontPath.string());
+            }
+        } else {
+            LOG_WARN("DX7InterfaceHook::InitializeImGui: font file not found: {}, falling back to built-in", fontPath.string());
+        }
+    }
+
+    if (!font) {
+        font = io.Fonts->AddFontFromMemoryCompressedTTF(
+            ProggyVector_compressed_data, ProggyVector_compressed_size, scaledFontSize, &fontConfig);
+        if (font) {
+            LOG_INFO("DX7InterfaceHook::InitializeImGui: loaded built-in font (size={})", scaledFontSize);
+        } else {
+            LOG_WARN("DX7InterfaceHook::InitializeImGui: failed to load built-in font, will use the d3d7imgui default");
+        }
+    }
+
+    if (font) {
+        io.FontDefault = font;
+    }
+
+    if (!ImGui_ImplWin32_Init(hwnd)) {
+        LOG_ERROR("DX7InterfaceHook::InitializeImGui: ImGui_ImplWin32_Init failed");
+        cleanupOnFailure();
+        return false;
+    }
+    win32Initialized = true;
+
+    if (!ImGui_ImplDX7_Init(d3dDevice, dd)) {
+        LOG_ERROR("DX7InterfaceHook::InitializeImGui: ImGui_ImplDX7_Init failed");
+        cleanupOnFailure();
+        return false;
+    }
+    dx7Initialized = true;
+
+    if (!ImGui_ImplDX7_CreateDeviceObjects()) {
+        LOG_ERROR("DX7InterfaceHook::InitializeImGui: ImGui_ImplDX7_CreateDeviceObjects failed");
+        cleanupOnFailure();
+        return false;
+    }
 
     return true;
 }
@@ -149,6 +231,21 @@ bool DX7InterfaceHook::InstallSceneHooks()
         return true;
     }
 
+    if (hookedDevice && origEndScene && hookedDevice != device) {
+        void** oldVtable = *reinterpret_cast<void***>(hookedDevice);
+        if (oldVtable) {
+            DWORD oldProtect = 0;
+            if (VirtualProtect(&oldVtable[kEndSceneVTableIndex], sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                InterlockedExchange(reinterpret_cast<LONG*>(&oldVtable[kEndSceneVTableIndex]),
+                                   reinterpret_cast<LONG>(origEndScene));
+                VirtualProtect(&oldVtable[kEndSceneVTableIndex], sizeof(void*), oldProtect, &oldProtect);
+            }
+        }
+        hookedDevice->Release();
+        s_HookedDevice.store(nullptr, std::memory_order_release);
+        s_OriginalEndScene.store(nullptr, std::memory_order_release);
+    }
+
     auto* originalFunc = reinterpret_cast<HRESULT (STDMETHODCALLTYPE*)(IDirect3DDevice7*)>(
         vtable[kEndSceneVTableIndex]);
     if (!originalFunc) {
@@ -170,6 +267,7 @@ bool DX7InterfaceHook::InstallSceneHooks()
     InterlockedExchange(reinterpret_cast<LONG*>(&vtable[kEndSceneVTableIndex]),
                        reinterpret_cast<LONG>(hookFunc));
 
+    device->AddRef();
     // Store hooked device atomically
     s_HookedDevice.store(device, std::memory_order_release);
 
@@ -204,10 +302,13 @@ void DX7InterfaceHook::ShutdownImGui()
                 VirtualProtect(&vtable[kEndSceneVTableIndex], sizeof(void*), oldProtect, &oldProtect);
             }
         }
+        hookedDevice->Release();
     }
-    ImGui_ImplDX7_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    if (ImGui::GetCurrentContext()) {
+        ImGui_ImplDX7_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
     s_FrameCallback.store(nullptr, std::memory_order_release);
     s_OriginalEndScene.store(nullptr, std::memory_order_release);
     s_HookedDevice.store(nullptr, std::memory_order_release);

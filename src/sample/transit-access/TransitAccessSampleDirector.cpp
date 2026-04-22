@@ -20,7 +20,9 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -34,6 +36,7 @@ namespace {
     constexpr uintptr_t kCalculateRoadAccessNetworkMaskPushAddress = 0x006C1BD1;
     constexpr uintptr_t kRoadAccessMapLookupAddress = 0x006C0F30;
     constexpr uintptr_t kCreateStartNodesAddress = 0x006D8A90;
+    constexpr uintptr_t kSetupPathFinderForLotAddress = 0x00711610;
     constexpr uintptr_t kSpLotManagerAddress = 0x00B43D08;
     constexpr uintptr_t kSpTrafficNetworkMapAddress = 0x00B43D54;
 
@@ -85,17 +88,25 @@ namespace {
 
     using CalculateRoadAccessFn = bool(__thiscall*)(cISC4Lot*);
     using CreateStartNodesFn = bool(__thiscall*)(void*);
+    using SetupPathFinderForLotFn = bool(__thiscall*)(void*, void*, cISC4Lot*);
     using RoadAccessMapLookupFn = uint8_t*(__thiscall*)(void*, int32_t*);
 
     CalculateRoadAccessFn gOriginalCalculateRoadAccess = nullptr;
     CreateStartNodesFn gOriginalCreateStartNodes = nullptr;
+    SetupPathFinderForLotFn gOriginalSetupPathFinderForLot = nullptr;
     std::atomic<uint32_t> gHookCallCount{0};
     std::atomic<uint32_t> gOriginalFailureCount{0};
     std::atomic<uint32_t> gExceptionSuccessCount{0};
+    std::atomic<uint32_t> gSetupPathFinderHookCallCount{0};
+    std::atomic<uint32_t> gSetupPathFinderSuccessCount{0};
     std::atomic<uint32_t> gStartNodesHookCallCount{0};
     std::atomic<uint32_t> gStartNodesOriginalFailureCount{0};
+    std::atomic<uint32_t> gStartNodesSourceLotSideTableHitCount{0};
+    std::atomic<uint32_t> gStartNodesSourceLotFallbackCount{0};
     std::atomic<uint32_t> gStartNodesMissingSourceLotCount{0};
     std::atomic<uint32_t> gStartNodesRetrySuccessCount{0};
+    std::mutex gPathFinderSourceLotsMutex;
+    std::unordered_map<void*, cISC4Lot*> gPathFinderSourceLots;
     thread_local bool gInsideCreateStartNodesRetry = false;
     bool gDirtRoadMaskPatchInstalled = false;
 
@@ -192,12 +203,18 @@ namespace {
         static constexpr std::array<uint8_t, kPatchByteCount> kExpectedCreateStartNodesPrologue{
             0x83, 0xEC, 0x5C, 0x53, 0x55, 0x56
         };
+        static constexpr std::array<uint8_t, kPatchByteCount> kExpectedSetupPathFinderForLotPrologue{
+            0x83, 0xEC, 0x14, 0x53, 0x55, 0x56
+        };
 
         if (address == kCalculateRoadAccessAddress) {
             return &kExpectedRoadAccessPrologue;
         }
         if (address == kCreateStartNodesAddress) {
             return &kExpectedCreateStartNodesPrologue;
+        }
+        if (address == kSetupPathFinderForLotAddress) {
+            return &kExpectedSetupPathFinderForLotPrologue;
         }
         return nullptr;
     }
@@ -459,6 +476,59 @@ namespace {
         }
 
         bool& flag;
+    };
+
+    void RecordSourceLotForPathFinder(void* pathFinder, cISC4Lot* lot) {
+        if (!pathFinder || !lot) {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(gPathFinderSourceLotsMutex);
+        gPathFinderSourceLots[pathFinder] = lot;
+    }
+
+    cISC4Lot* FindRecordedSourceLotForPathFinder(void* pathFinder) {
+        if (!pathFinder) {
+            return nullptr;
+        }
+
+        std::lock_guard<std::mutex> lock(gPathFinderSourceLotsMutex);
+        const auto it = gPathFinderSourceLots.find(pathFinder);
+        return it != gPathFinderSourceLots.end() ? it->second : nullptr;
+    }
+
+    void EraseRecordedSourceLotForPathFinder(void* pathFinder) {
+        if (!pathFinder) {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(gPathFinderSourceLotsMutex);
+        gPathFinderSourceLots.erase(pathFinder);
+    }
+
+    size_t GetRecordedSourceLotCount() {
+        std::lock_guard<std::mutex> lock(gPathFinderSourceLotsMutex);
+        return gPathFinderSourceLots.size();
+    }
+
+    void ClearRecordedSourceLots() {
+        std::lock_guard<std::mutex> lock(gPathFinderSourceLotsMutex);
+        gPathFinderSourceLots.clear();
+    }
+
+    struct ScopedPathFinderSourceLotRecordErase {
+        explicit ScopedPathFinderSourceLotRecordErase(void* pathFinder)
+            : pathFinder(pathFinder) {
+        }
+
+        ScopedPathFinderSourceLotRecordErase(const ScopedPathFinderSourceLotRecordErase&) = delete;
+        ScopedPathFinderSourceLotRecordErase& operator=(const ScopedPathFinderSourceLotRecordErase&) = delete;
+
+        ~ScopedPathFinderSourceLotRecordErase() {
+            EraseRecordedSourceLotForPathFinder(pathFinder);
+        }
+
+        void* pathFinder;
     };
 
     std::string CopyGZString(const cIGZString* value) {
@@ -975,6 +1045,7 @@ namespace {
             LOG_WARN("TransitAccess: CreateStartNodes hook received null pathFinder");
             return false;
         }
+        ScopedPathFinderSourceLotRecordErase sourceLotRecordErase(pathFinder);
 
         if (ShouldLogSample(hookCallCount)) {
             void* trafficSimulator =
@@ -1008,7 +1079,25 @@ namespace {
             return false;
         }
 
-        cISC4Lot* sourceLot = FindSourceLotForPathFinder(pathFinder);
+        cISC4Lot* sourceLot = FindRecordedSourceLotForPathFinder(pathFinder);
+        if (sourceLot) {
+            const uint32_t sideTableHitCount = ++gStartNodesSourceLotSideTableHitCount;
+            if (ShouldLogSample(sideTableHitCount)) {
+                TRANSIT_LOG_DEBUG("TransitAccess: matched CreateStartNodes pathFinder={} to recorded source lot {} hitCount={}",
+                          pathFinder,
+                          DescribeLot(sourceLot),
+                          sideTableHitCount);
+            }
+        } else {
+            const uint32_t fallbackCount = ++gStartNodesSourceLotFallbackCount;
+            if (ShouldLogSample(fallbackCount)) {
+                TRANSIT_LOG_DEBUG("TransitAccess: no recorded source lot for pathFinder={}, falling back to source-rect lookup fallbackCount={}",
+                          pathFinder,
+                          fallbackCount);
+            }
+            sourceLot = FindSourceLotForPathFinder(pathFinder);
+        }
+
         if (!sourceLot) {
             const uint32_t missingSourceLotCount = ++gStartNodesMissingSourceLotCount;
             if (ShouldLogSample(missingSourceLotCount)) {
@@ -1028,6 +1117,49 @@ namespace {
         return retrySucceeded;
     }
 
+    bool __fastcall HookSetupPathFinderForLot(
+        void* trafficSimulator,
+        void*,
+        void* pathFinder,
+        cISC4Lot* lot) {
+
+        const uint32_t hookCallCount = ++gSetupPathFinderHookCallCount;
+        if (ShouldLogSample(hookCallCount)) {
+            TRANSIT_LOG_TRACE("TransitAccess: SetupPathFinderForLot hook call {} trafficSimulator={} pathFinder={} sourceLot=[{}]",
+                      hookCallCount,
+                      trafficSimulator,
+                      pathFinder,
+                      DescribeLot(lot));
+        }
+
+        bool setupSucceeded = false;
+        if (gOriginalSetupPathFinderForLot) {
+            setupSucceeded = gOriginalSetupPathFinderForLot(trafficSimulator, pathFinder, lot);
+        } else {
+            LOG_WARN("TransitAccess: SetupPathFinderForLot hook has no original trampoline");
+        }
+
+        if (setupSucceeded && pathFinder && lot) {
+            RecordSourceLotForPathFinder(pathFinder, lot);
+            const uint32_t successCount = ++gSetupPathFinderSuccessCount;
+            if (ShouldLogSample(successCount)) {
+                TRANSIT_LOG_DEBUG("TransitAccess: recorded pathFinder={} source lot [{}] setupSuccessCount={}",
+                          pathFinder,
+                          DescribeLot(lot),
+                          successCount);
+            }
+        } else {
+            EraseRecordedSourceLotForPathFinder(pathFinder);
+            if (ShouldLogSample(hookCallCount)) {
+                TRANSIT_LOG_DEBUG("TransitAccess: SetupPathFinderForLot failed or incomplete pathFinder={} sourceLot=[{}]",
+                          pathFinder,
+                          DescribeLot(lot));
+            }
+        }
+
+        return setupSucceeded;
+    }
+
     InlineHook gCalculateRoadAccessHook{
         "cSC4Lot::CalculateRoadAccess",
         kCalculateRoadAccessAddress,
@@ -1038,6 +1170,12 @@ namespace {
         "cSC4PathFinder::CreateStartNodes",
         kCreateStartNodesAddress,
         reinterpret_cast<void*>(&HookCreateStartNodes)
+    };
+
+    InlineHook gSetupPathFinderForLotHook{
+        "cSC4TrafficSimulator::SetupPathFinderForLot",
+        kSetupPathFinderForLotAddress,
+        reinterpret_cast<void*>(&HookSetupPathFinderForLot)
     };
 }
 
@@ -1089,28 +1227,45 @@ public:
                 reinterpret_cast<CreateStartNodesFn>(gCreateStartNodesHook.trampoline);
             LOG_INFO("TransitAccess: installed pathfinder start-node hook at 0x{:08X}",
                      static_cast<uint32_t>(gCreateStartNodesHook.patchAddress));
+
+            if (InstallInlineHook(gSetupPathFinderForLotHook)) {
+                gOriginalSetupPathFinderForLot =
+                    reinterpret_cast<SetupPathFinderForLotFn>(gSetupPathFinderForLotHook.trampoline);
+                LOG_INFO("TransitAccess: installed pathfinder source-lot setup hook at 0x{:08X}",
+                         static_cast<uint32_t>(gSetupPathFinderForLotHook.patchAddress));
+            }
+        } else {
+            LOG_WARN("TransitAccess: start-node hook was not installed; source-lot setup hook disabled");
         }
 
         return true;
     }
 
     bool PostAppShutdown() override {
-        LOG_INFO("TransitAccess: PostAppShutdown roadAccessCalls={} roadAccessOriginalFailures={} roadAccessExceptionSuccesses={} startNodeCalls={} startNodeOriginalFailures={} startNodeMissingSourceLots={} startNodeRetrySuccesses={}",
+        LOG_INFO("TransitAccess: PostAppShutdown roadAccessCalls={} roadAccessOriginalFailures={} roadAccessExceptionSuccesses={} setupPathFinderCalls={} setupPathFinderSuccesses={} startNodeCalls={} startNodeOriginalFailures={} startNodeSideTableHits={} startNodeFallbacks={} startNodeMissingSourceLots={} startNodeRetrySuccesses={} outstandingSourceLotRecords={}",
                  gHookCallCount.load(),
                  gOriginalFailureCount.load(),
                  gExceptionSuccessCount.load(),
+                 gSetupPathFinderHookCallCount.load(),
+                 gSetupPathFinderSuccessCount.load(),
                  gStartNodesHookCallCount.load(),
                  gStartNodesOriginalFailureCount.load(),
+                 gStartNodesSourceLotSideTableHitCount.load(),
+                 gStartNodesSourceLotFallbackCount.load(),
                  gStartNodesMissingSourceLotCount.load(),
-                 gStartNodesRetrySuccessCount.load());
+                 gStartNodesRetrySuccessCount.load(),
+                 GetRecordedSourceLotCount());
         if (gDirtRoadMaskPatchInstalled) {
             PatchDirtRoadMasks(false);
             gDirtRoadMaskPatchInstalled = false;
         }
+        UninstallInlineHook(gSetupPathFinderForLotHook);
+        gOriginalSetupPathFinderForLot = nullptr;
         UninstallInlineHook(gCreateStartNodesHook);
         gOriginalCreateStartNodes = nullptr;
         UninstallInlineHook(gCalculateRoadAccessHook);
         gOriginalCalculateRoadAccess = nullptr;
+        ClearRecordedSourceLots();
         return true;
     }
 };

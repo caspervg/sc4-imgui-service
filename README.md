@@ -1,6 +1,7 @@
 # sc4-render-services
 
-Render services and samples (ImGui, Draw, S3D Camera) for SimCity 4 DLL plugins using the gzcom-dll SDK.
+Render services and samples (ImGui, Draw, S3D Camera, Terrain Decals) for
+SimCity 4 DLL plugins using the gzcom-dll SDK.
 
 ![Screenshot](docs/assets/preview.jpg)
 
@@ -16,11 +17,72 @@ cmake -S . -B cmake-build-debug-visual-studio -G "Visual Studio 17 2022"
 cmake --build cmake-build-debug-visual-studio --config Debug
 ```
 
+## Installation
+
+1. Copy `imgui.dll` into your SimCity 4 **Apps** folder
+   (e.g. `C:\Program Files (x86)\SimCity 4 Deluxe Edition\Apps\`).
+2. Copy `SC4RenderServices.dll` and `SC4RenderServices.ini` into your
+   **Plugins** folder
+   (e.g. `Documents\SimCity 4\Plugins\`).
+3. (Optional) Copy any sample DLLs you want into the same **Plugins** folder.
+4. Edit `SC4RenderServices.ini` to customise logging, appearance, and which
+   services are loaded. See [Configuration](#configuration) below.
+
+## Configuration
+
+`SC4RenderServices.ini` must sit next to `SC4RenderServices.dll` in the
+Plugins folder. All settings are optional; if the file is missing or a key
+is absent the default value is used.
+
+```ini
+[SC4RenderServices]
+; Logging verbosity.
+; Valid values: trace, debug, info, warn, error, critical, off
+LogLevel=info
+
+; Write logs to file. Set to false for MSVC debug output only.
+LogToFile=true
+
+; ImGui base font size in pixels. Valid range: 8.0 - 32.0
+FontSize=13.0
+
+; Custom .ttf font file path (relative to DLL folder).
+; Leave empty to use the built-in ProggyVector font.
+FontFile=
+
+; Font oversampling level (1-3). Higher = crisper text, more memory.
+FontOversample=2
+
+; ImGui color theme. Valid values: dark, light, classic
+Theme=dark
+
+; Enable ImGui keyboard navigation.
+KeyboardNav=true
+
+; Global UI scale factor. Valid range: 0.5 - 3.0
+UIScale=1.0
+
+; Show a built-in status panel and the Dear ImGui demo window on startup.
+; Useful for verifying that the service installed correctly.
+ShowDemoPanel=false
+
+; Enable or disable individual services.
+EnableImGuiService=true
+EnableS3DCameraService=true
+EnableDrawService=true
+EnableTerrainDecalService=true
+
+; Enables the custom terrain decal renderer path used for UV subrect support
+; and clipped decal rendering.
+EnableTerrainDecalExperimentalRenderer=true
+```
+
 ## Outputs
 
 Required:
 - `imgui.dll` (deployed to `...\SimCity 4 Deluxe Edition\Apps`)
 - `SC4RenderServices.dll` (deployed to `...\Documents\SimCity 4\Plugins\`)
+- `SC4RenderServices.ini` (deployed to `...\Documents\SimCity 4\Plugins\`)
 
 Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 - `SC4ImGuiSample.dll` (basic panel)
@@ -32,13 +94,16 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 - `SC4OverlayManagerSample.dll` (overlay manager example)
 - `SC4DrawServiceSample.dll` (draw service UI + hooks)
 - `SC4RoadDecalSample.dll` (road decal rendering)
+- `SC4TerrainDecalSample.dll` (terrain decal editor and API sample)
 
 ## Provided Services
 
-`SC4RenderServices.dll` registers three services (currently gated for SimCity 4
+`SC4RenderServices.dll` registers four services (currently gated for SimCity 4
 version `1.1.641`).
 
 Detailed reference: [docs/services.md](docs/services.md)
+
+Terrain decal guide: [docs/terrain-decals.md](docs/terrain-decals.md)
 
 ### 1) ImGui service
 
@@ -68,6 +133,18 @@ Detailed reference: [docs/services.md](docs/services.md)
   (`PreStatic`...`PostDynamic`), and helpers for render state, mesh/model draw
   calls, and primitive drawing.
 - Examples: `SC4DrawServiceSample.dll`, `SC4RoadDecalSample.dll`
+
+### 4) Terrain decal service
+
+- Service ID / IID: `kTerrainDecalServiceID`,
+  `GZIID_cIGZTerrainDecalService`
+  (`src/public/TerrainDecalServiceIds.h`)
+- Interface: `cIGZTerrainDecalService`
+  (`src/public/cIGZTerrainDecalService.h`)
+- Provides managed create/update/remove/enumerate APIs for terrain decals,
+  save/load persistence for managed decals, and optional UV sub-rectangle
+  overrides.
+- Example: `SC4TerrainDecalSample.dll`
 
 ## Usage
 

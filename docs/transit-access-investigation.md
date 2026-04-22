@@ -265,9 +265,12 @@ The critical Mac symbol binary functions are:
 | ---: | --- | --- |
 | `0x000531C4` | `cSC4TrafficSimulator::SetupTrip` | Configures trip/pathfinder parameters and destination rectangles |
 | `0x00059780` | `cSC4TrafficSimulator::SetupPathFinderForLot` | Uses `lot->AsTrafficSource()->GetSourceCells(...)` as the pathfinder source rectangle |
+| `0x00053726` | `cSC4TrafficSimulator::GetNetworkInfo` | Returns real network info for a network type/cell |
+| `0x00053D40` | `cSC4TrafficSimulator::GetNeighborPoolPropertyHolder` | Returns a transit-neighbor property holder for switch/destination checks |
 | `0x0009B804` | `cSC4PathFinder::FindPath` | Main pathfinder expansion loop |
 | `0x0009B09C` | `cSC4PathFinder::CreateStartNodes` | Seeds the initial priority queue from real traffic network cells around the source rectangle |
 | `0x0009AF00` | `cSC4PathFinder::AddTripNode` | Adds a non-root node during path expansion |
+| `0x0009911A` | `cSC4PathFinder::AtGoal` | Checks whether a popped node satisfies the destination, including transit-neighbor property holders |
 | `0x00099934` | `cSC4PathFinder::FindNearestStandardDest` | Chooses standard destination cells for normal trips |
 
 `CreateStartNodes` is the important discovery. It scans rings around the source
@@ -373,8 +376,14 @@ The Windows binary now has the relevant pathfinder functions identified:
 | `0x006D91B0` | `cSC4PathFinder_FindPath` | Mapped from Mac `cSC4PathFinder::FindPath`; calls standard-destination search, then `CreateStartNodes`, then expands the queue |
 | `0x006D8A90` | `cSC4PathFinder_CreateStartNodes` | Mapped from Mac `cSC4PathFinder::CreateStartNodes`; scans around the source rectangle and seeds root trip nodes from real network cells only |
 | `0x006D8FA0` | `cSC4PathFinder_AddTripNode` | Mapped from Mac `cSC4PathFinder::AddTripNode`; adds non-root nodes during expansion |
+| `0x006D7960` | `cSC4PathFinder_AtGoal` | Mapped from Mac `cSC4PathFinder::AtGoal`; checks destination lots, neighbor-pool holders, and special destination modes |
 | `0x006D7E50` | `cSC4PathFinder_FindNearestStandardDest` | Mapped from Mac `cSC4PathFinder::FindNearestStandardDest` |
-| `0x007114E0` | traffic simulator `GetNetworkInfo`-like helper | Returns internal network info for a network type/cell; used by pathfinder and simulator code |
+| `0x0070EC40` | `cSC4TrafficSimulator_SetupTrip` | Mapped from Mac `cSC4TrafficSimulator::SetupTrip`; configures a pathfinder from `StandardTripParams` and `cSC4TripData` |
+| `0x0070FB30` | `cSC4TrafficSimulator_GetNetworkInfo` | Mapped from Mac `cSC4TrafficSimulator::GetNetworkInfo`; returns real network info for a network type/cell |
+| `0x007114E0` | `cSC4TrafficSimulator_GetNeighborPoolPropertyHolder` | Mapped from Mac `cSC4TrafficSimulator::GetNeighborPoolPropertyHolder`; returns the transit-neighbor property holder used by `AtGoal` |
+| `0x00711610` | `cSC4TrafficSimulator_SetupPathFinderForLot` | Mapped from Mac `cSC4TrafficSimulator::SetupPathFinderForLot`; configures a pathfinder for a specific source lot |
+| `0x0071D020` | `cSC4TrafficSimulator_WorkOnReRouteTrips` | Mapped from Mac `cSC4TrafficSimulator::WorkOnReRouteTrips`; one caller of `SetupTrip` |
+| `0x0071D440` | `cSC4TrafficSimulator_WorkOnFullTrips` | Mapped from Mac `cSC4TrafficSimulator::WorkOnFullTrips`; one caller of `SetupTrip` |
 
 Verified Windows prologue bytes:
 
@@ -396,6 +405,100 @@ The trampoline should jump back to:
 ```cpp
 0x006D8A96
 ```
+
+### Traffic Pathfinder Source-Lot Setup
+
+The stripped Windows function at `0x00711610` has enough overlap with the Mac
+symbol `cSC4TrafficSimulator::SetupPathFinderForLot` to rename it confidently.
+The decisive pattern is:
+
+- stack argument 1 is the `cISC4PathFinder*`;
+- stack argument 2 is the `cISC4Lot*`;
+- `ECX` is the traffic simulator instance;
+- the lot vtable slot `+0x10` returns a traffic source;
+- traffic-source vtable slot `+0x14` fills the source-cell rectangle;
+- pathfinder vtable slot `+0x4C` receives that rectangle;
+- pathfinder vtable slot `+0x34` is then called with `0x1CF, 0` and `3, 1`;
+- the function returns a boolean in `AL`.
+
+The interface/data reference to this function is at `0x00AB33EC`. Ghidra may
+display the stripped function as `__stdcall`; the disassembly shows the
+interface-style `this` pointer in `ECX`.
+
+Hook shape:
+
+```cpp
+using SetupPathFinderForLotFn =
+    bool(__thiscall*)(void* trafficSimulator, void* pathFinder, cISC4Lot* lot);
+
+bool __fastcall HookSetupPathFinderForLot(
+    void* trafficSimulator,
+    void*,
+    void* pathFinder,
+    cISC4Lot* lot);
+```
+
+The hook should not change pathfinder behavior directly. Its best use is
+bookkeeping: call the original, then record `pathFinder -> sourceLot` for the
+later `CreateStartNodes` fallback.
+
+Cleanup should be tied to actual hook use rather than to speculative ownership
+of game objects:
+
+- On setup success, overwrite the side-table entry for that `pathFinder`.
+- On setup failure, erase any stale entry for that `pathFinder`.
+- In the `CreateStartNodes` hook, erase the entry after the original/retry path
+  consumes it.
+- Keep the stored value as a raw `cISC4Lot*`; do not AddRef/Release unless a
+  real ownership contract is proven.
+
+The Windows pathfinder destructor chain is identified as:
+
+| Windows address | Current name/status | Meaning |
+| ---: | --- | --- |
+| `0x006D61B0` | `cSC4PathFinder_Release` | Refcount release; calls vtable `+0x84` when the count reaches zero |
+| `0x006D7050` | `cSC4PathFinder_DeletingDestructor` | Calls the real destructor, then `operator_delete` when requested |
+| `0x006D6CA0` | `cSC4PathFinder_Destructor` | Destroys the pathfinder containers/strings |
+
+A destructor hook could be used as a backstop to erase side-table entries, but
+the first implementation should not need it if `SetupPathFinderForLot` and
+`CreateStartNodes` keep the map bounded.
+
+### Traffic Simulator Trip Setup
+
+The stripped Windows function at `0x0070EC40` matches Mac
+`cSC4TrafficSimulator::SetupTrip(StandardTripParams&, cSC4TripData&)`.
+Important overlap:
+
+- `param_1 + 0x08` is the primary `cISC4PathFinder*`;
+- `param_1 + 0x0C` is another pathfinder-like object configured in parallel;
+- `param_1 + 0x10` is the traffic source used to fill the source rectangle;
+- trip byte `+0x1C` controls the travel mode;
+- trip byte `+0x1D` selects a cost table/wealth or destination variant;
+- trip byte `+0x1E` contains pathfinder flags;
+- trip byte `+0x1F` selects a special destination branch;
+- trip words `+0x20/+0x22` are destination cell coordinates for special trips.
+
+The function calls pathfinder vtable slots `+0x48`, `+0x24`, `+0x30`,
+`+0x28`, `+0x54`, `+0x4C`, `+0x1C`, `+0x3C`, `+0x40`, `+0x44`, and `+0x34`.
+The familiar mask setup appears here too:
+
+```cpp
+// pathfinder vtable +0x34
+call(0x1CF, 0);
+call(1 << tripData[0x1D], 1);
+```
+
+This is useful context, but it is not the preferred hook for RTMT start access.
+It configures the pathfinder for many trip types and does not receive the
+source `cISC4Lot*` as directly as `SetupPathFinderForLot`.
+
+The only direct Windows callers found so far match the Mac symbol binary:
+
+| Windows call site | Windows function | Mac equivalent |
+| ---: | --- | --- |
+| `0x0071D233` | `cSC4TrafficSimulator_WorkOnReRouteTrips` | `cSC4TrafficSimulator::WorkOnReRouteTrips` calls `SetupTrip` at `0x00064FA1` |
+| `0x0071D636` | `cSC4TrafficSimulator_WorkOnFullTrips` | `cSC4TrafficSimulator::WorkOnFullTrips` calls `SetupTrip` at `0x0006544B` |
 
 Observed Windows pathfinder field offsets from the decompiler:
 
@@ -425,13 +528,42 @@ Relevant Windows traffic-simulator offsets seen through `FindPath`:
 | Offset | Meaning |
 | ---: | --- |
 | `+0x58` | per-cell path/edge data table, indexed as `(x << 8 | z) * 0x2E` |
+| `+0x7C` | real network-info grid used by `cSC4TrafficSimulator_GetNetworkInfo` |
+| `+0x88/+0x94/+0xA0/+0xAC` | boundary/neighbor-connection rows used by `GetNeighborPoolPropertyHolder` |
+| `+0xB8` | property-holder map used by `GetNeighborPoolPropertyHolder` |
+| `+0xC4` | default property holder returned by `GetNeighborPoolPropertyHolder` |
 | `+0x164` | vector of six congestion/speed grids |
-| `+0x700` | one simulator grid, used before expansion |
+| `+0x700` | second switch-related grid acquired before expansion; return value not used in the observed path |
 | `+0x704` | transit-switch occupancy grid used by `FindPath` |
 | `+0x7A4` | pathfinder mode flag that narrows allowed mode mask |
 | `+0xC50` | maximum start-node ring scan radius |
 | `+0xC78` | default start-cost table |
 | `+0xCF8` | standard destination heuristic scale |
+
+The Mac offsets for the two switch-related grids are `+0x718` and `+0x71C`.
+The Windows equivalents are `+0x700` and `+0x704`. The `+0x704` grid is the
+one assigned to the local pointer and consulted throughout `FindPath`.
+
+### Traffic Switch Traversal
+
+The normal pathfinder expansion is more TE-aware than `CreateStartNodes`.
+The key Windows flow in `cSC4PathFinder_FindPath` is:
+
+1. Load the transit-switch occupancy grid from simulator `+0x704`.
+2. Pop a `TripNode` from the priority queue.
+3. If the current cell is in bounds, first test whether the occupancy grid has
+   an entry at `x,z`.
+4. Use `cSC4TrafficSimulator_GetNetworkInfo(networkType, x, z)` at
+   `0x0070FB30` when real network info is needed.
+5. If real network info is absent but the occupancy grid has an entry, apply
+   `cSC4TrafficSimulator::TransitSwitchEntryCost` and enqueue the switch step.
+6. Use `cSC4TrafficSimulator_GetNeighborPoolPropertyHolder` at `0x007114E0`
+   inside `AtGoal` to validate destination capacity/property-holder state for
+   transit-neighbor cells.
+
+This confirms that the simulator can traverse transit-switch cells once a path
+already exists in the queue. The missing piece for RTMT-adjacent growables is
+therefore the initial queue seed, not general transit-switch traversal.
 
 The Windows `CreateStartNodes` root-node insertion path calls:
 
@@ -669,8 +801,8 @@ Flow:
 1. Hook Windows `cSC4PathFinder_CreateStartNodes` at `0x006D8A90`.
 2. Call the original first.
 3. If the original succeeds, return true.
-4. If the original fails, identify the source lot from the pathfinder source
-   rectangle or from a side table populated by `SetupPathFinderForLot`.
+4. If the original fails, identify the source lot from the side table
+   populated by the `SetupPathFinderForLot` hook at `0x00711610`.
 5. Find side-touching adjacent TE lots using the same property checks as the
    road-access hook.
 6. For each adjacent TE lot that has road-like contact, temporarily replace the
@@ -699,10 +831,10 @@ Verification notes:
   reuse the original envelope. That can affect root-node scoring, but it should
   not invalidate root nodes. For an immediately adjacent TE lot, the difference
   should usually be small.
-- The source lot can probably be recovered by scanning the current source
-  rectangle with `LotManager::GetLot(x,z,true)`. A `SetupPathFinderForLot` side
-  table remains an optional improvement if source-lot recovery proves
-  ambiguous.
+- The source lot should be recovered from the `SetupPathFinderForLot` side
+  table. Scanning the current source rectangle with `LotManager::GetLot(x,z,
+  true)` remains a fallback only, because it is less explicit and can become
+  ambiguous if the source rectangle does not map cleanly to the intended lot.
 
 Limitations:
 
@@ -755,20 +887,32 @@ Risks:
 This should be considered only if Option A does not produce useful commute
 behavior.
 
-### Option C: Hook `SetupPathFinderForLot`
+### Option C: Hook `SetupPathFinderForLot` For Source-Lot Bookkeeping
 
-Hooking `cSC4TrafficSimulator::SetupPathFinderForLot` could record a
-`pathFinder -> lot` side table for later use by `CreateStartNodes`. This is
-useful support infrastructure, but probably not sufficient by itself. Merely
-changing `TrafficSource::GetSourceCells` or expanding the source rectangle can
-put the real network inside the source rectangle rather than on its boundary,
-which may still fail stock start-node seeding.
+`cSC4TrafficSimulator_SetupPathFinderForLot` is now identified in the Windows
+binary at `0x00711610`. This hook is not a separate functional fix; it is
+support infrastructure for Option A.
 
-The best use of this hook is therefore:
+The best use of this hook is:
 
-- record the exact source lot pointer while configuring the pathfinder;
-- remove the record after pathfinding completes if a safe completion hook is
-  found, or use a small bounded cache keyed by pathfinder pointer.
+- call the original setup function first;
+- when setup succeeds, record `pathFinder -> sourceLot`;
+- when setup fails, remove any stale record for that pathfinder;
+- let `CreateStartNodes` use this side table when stock root-node creation
+  fails;
+- erase the side-table entry after `CreateStartNodes` has consumed it.
+
+This is safer than recovering the source lot indirectly from
+`pathFinder +0x18..+0x24`. The source rectangle is only the lot's traffic-source
+footprint, while `SetupPathFinderForLot` receives the exact `cISC4Lot*` that
+the simulator is preparing.
+
+The hook should not replace the source rectangle, expand `GetSourceCells`, or
+otherwise change pathfinder setup. Merely expanding the source rectangle can
+put nearby real network cells inside the source rectangle rather than on its
+boundary, which may still fail stock start-node seeding and could affect
+destination heuristics. The actual behavior change should stay in the
+`CreateStartNodes` fallback.
 
 ## Zoning And Parcellization Notes
 
@@ -936,9 +1080,15 @@ Before trusting a build, verify the Windows binary assumptions:
 - `0x006D8A90` still matches `cSC4PathFinder_CreateStartNodes`.
 - `0x006D8FA0` still matches `cSC4PathFinder_AddTripNode`.
 - `0x006D91B0` still matches `cSC4PathFinder_FindPath`.
+- `0x006D7960` still matches `cSC4PathFinder_AtGoal`.
 - `0x006D7E50` still matches `cSC4PathFinder_FindNearestStandardDest`.
-- `0x007114E0` still matches the traffic simulator `GetNetworkInfo`-like
-  helper.
+- `0x0070EC40` still matches `cSC4TrafficSimulator_SetupTrip`.
+- `0x0070FB30` still matches `cSC4TrafficSimulator_GetNetworkInfo`.
+- `0x007114E0` still matches
+  `cSC4TrafficSimulator_GetNeighborPoolPropertyHolder`.
+- `0x00711610` still matches `cSC4TrafficSimulator_SetupPathFinderForLot`.
+- `0x0071D020` still matches `cSC4TrafficSimulator_WorkOnReRouteTrips`.
+- `0x0071D440` still matches `cSC4TrafficSimulator_WorkOnFullTrips`.
 - `spLotManager` at `0x00B43D08` is non-null in city context.
 - `spTrafficNetworkMap` at `0x00B43D54` is non-null in city context.
 - Traffic network map lookup still sits at vtable slot 8.
@@ -1159,12 +1309,16 @@ existing game behavior:
 - It writes the same road-access cache that the stock function writes.
 - It avoids broad TE-chain behavior.
 
-The overall solution now likely needs two hooks:
+The overall solution now likely needs two behavior hooks plus one bookkeeping
+hook:
 
 - `cSC4Lot::CalculateRoadAccess` for growth/access eligibility.
 - `cSC4PathFinder::CreateStartNodes` for actual commute attachment.
+- `cSC4TrafficSimulator::SetupPathFinderForLot` for reliable
+  `pathFinder -> sourceLot` bookkeeping.
 
 The recommended next prototype is Option A, the source-rectangle retry through
-the adjacent TE lot. It is less precise than direct synthetic transit-switch
-root nodes, but it reuses stock node creation and should quickly tell us
-whether the missing piece is simply start-node attachment beyond the TE lot.
+the adjacent TE lot, with the setup hook feeding it the exact source lot. It is
+less precise than direct synthetic transit-switch root nodes, but it reuses
+stock node creation and should quickly tell us whether the missing piece is
+simply start-node attachment beyond the TE lot.

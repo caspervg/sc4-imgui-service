@@ -33,6 +33,11 @@ bld/
 [Ll]og/
 [Ll]ogs/
 build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CMakeUserPresets.json
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -371,3 +376,5 @@ vcpkg_installed/
 extra-info/
 fonts/
 docs/doxygen/
+dist/*.exe
+imgui.lib
