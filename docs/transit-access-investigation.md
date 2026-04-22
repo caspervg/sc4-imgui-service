@@ -375,6 +375,11 @@ The Windows binary now has the relevant pathfinder functions identified:
 | ---: | --- | --- |
 | `0x006D91B0` | `cSC4PathFinder_FindPath` | Mapped from Mac `cSC4PathFinder::FindPath`; calls standard-destination search, then `CreateStartNodes`, then expands the queue |
 | `0x006D8A90` | `cSC4PathFinder_CreateStartNodes` | Mapped from Mac `cSC4PathFinder::CreateStartNodes`; scans around the source rectangle and seeds root trip nodes from real network cells only |
+| `0x006D7730` | `cSC4PathFinder_TripNodeHashMap_GetNode` | Mapped from Mac `cSC4PathFinder::TripNodeHashMap::GetNode`; returns or allocates a `TripNode` for a packed node key |
+| `0x006D88B0` | `cSC4PathFinder_TripNodePriorityQueue_Push` | Mapped from Mac `cSC4PathFinder::TripNodePriorityQueue::Push`; inserts a node into the open priority queue |
+| `0x006D6460` | `cSC4PathFinder_TripNodePriorityQueue_UpdateNode` | Mapped from Mac priority queue update helper used when an already-open node gets a better score |
+| `0x006D5DF0` | `cSC4PathFinder_DecodeTripNodeKey` | Decodes a packed trip-node key into mode/x/z fields |
+| `0x006D6160` | `cSC4PathFinder_GetHeuristicCost` | Returns the destination heuristic component for an x/z cell |
 | `0x006D8FA0` | `cSC4PathFinder_AddTripNode` | Mapped from Mac `cSC4PathFinder::AddTripNode`; adds non-root nodes during expansion |
 | `0x006D7960` | `cSC4PathFinder_AtGoal` | Mapped from Mac `cSC4PathFinder::AtGoal`; checks destination lots, neighbor-pool holders, and special destination modes |
 | `0x006D7E50` | `cSC4PathFinder_FindNearestStandardDest` | Mapped from Mac `cSC4PathFinder::FindNearestStandardDest` |
@@ -382,6 +387,7 @@ The Windows binary now has the relevant pathfinder functions identified:
 | `0x0070FB30` | `cSC4TrafficSimulator_GetNetworkInfo` | Mapped from Mac `cSC4TrafficSimulator::GetNetworkInfo`; returns real network info for a network type/cell |
 | `0x007114E0` | `cSC4TrafficSimulator_GetNeighborPoolPropertyHolder` | Mapped from Mac `cSC4TrafficSimulator::GetNeighborPoolPropertyHolder`; returns the transit-neighbor property holder used by `AtGoal` |
 | `0x00711610` | `cSC4TrafficSimulator_SetupPathFinderForLot` | Mapped from Mac `cSC4TrafficSimulator::SetupPathFinderForLot`; configures a pathfinder for a specific source lot |
+| `0x0071CB20` | `cSC4TrafficSimulator_TransitSwitchEntryCost` | Mapped from Mac `cSC4TrafficSimulator::TransitSwitchEntryCost`; computes cost for entering a transit switch by switch key |
 | `0x0071D020` | `cSC4TrafficSimulator_WorkOnReRouteTrips` | Mapped from Mac `cSC4TrafficSimulator::WorkOnReRouteTrips`; one caller of `SetupTrip` |
 | `0x0071D440` | `cSC4TrafficSimulator_WorkOnFullTrips` | Mapped from Mac `cSC4TrafficSimulator::WorkOnFullTrips`; one caller of `SetupTrip` |
 
@@ -516,6 +522,8 @@ Observed Windows pathfinder field offsets from the decompiler:
 | `+0x80` | destination type |
 | `+0x84` | destination/occupancy mask used by standard destination search |
 | `+0x90` | optional start-cost table; otherwise uses simulator table |
+| `+0xC8..+0xE8` | per-mode rejection counters used by `AddTripNode` |
+| `+0xEC` | per-mode reject/disable mask set after repeated over-budget attempts |
 | `+0x114` | trip-node priority queue |
 | `+0x120` | priority queue size/count |
 | `+0x128` | trip-node hash map |
@@ -535,6 +543,8 @@ Relevant Windows traffic-simulator offsets seen through `FindPath`:
 | `+0x164` | vector of six congestion/speed grids |
 | `+0x700` | second switch-related grid acquired before expansion; return value not used in the observed path |
 | `+0x704` | transit-switch occupancy grid used by `FindPath` |
+| `+0x70C` | transit-switch hash map used by `TransitSwitchEntryCost` |
+| `+0x720` | transit-switch entry-cost scale factor |
 | `+0x7A4` | pathfinder mode flag that narrows allowed mode mask |
 | `+0xC50` | maximum start-node ring scan radius |
 | `+0xC78` | default start-cost table |
@@ -568,8 +578,8 @@ therefore the initial queue seed, not general transit-switch traversal.
 The Windows `CreateStartNodes` root-node insertion path calls:
 
 ```cpp
-0x006D7730 // trip-node hash-map lookup/create
-0x006D88B0 // priority-queue push
+0x006D7730 // cSC4PathFinder_TripNodeHashMap_GetNode(pathFinder + 0x128, key)
+0x006D88B0 // cSC4PathFinder_TripNodePriorityQueue_Push(pathFinder + 0x114, node)
 ```
 
 Root node keys use the same shape as the Mac code:
@@ -588,6 +598,61 @@ node->closed = false;     // byte at +0x11
 node->queued = true;      // byte at +0x10
 node->entryEdge = edge;   // byte at +0x12
 ```
+
+More complete `TripNode` layout observed so far:
+
+| Offset | Meaning |
+| ---: | --- |
+| `+0x00` | packed node key |
+| `+0x04` | parent `TripNode*`; null for root nodes |
+| `+0x08` | accumulated path cost |
+| `+0x0C` | priority score, cost plus heuristic |
+| `+0x10` | queued/open flag |
+| `+0x11` | closed/processed flag |
+| `+0x12` | entry edge/direction used for path-data edge bits |
+| `+0x13` | travel mode/network byte decoded from the key |
+| `+0x14` | decoded x coordinate, `uint16_t` |
+| `+0x16` | decoded z coordinate, `uint16_t` |
+| `+0x18` | next node in hash bucket chain |
+| `+0x1C` | hash bucket index |
+| `+0x20` | priority-queue heap index |
+
+Nodes are allocated in `0x24000` byte blocks and the allocator advances by
+`0x24`, so the node size is `0x24` bytes. The hash map at `pathFinder + 0x128`
+uses `0xC07` buckets and hashes the packed key with `key * -0x61C8864F`.
+
+Important static arrays from the Windows binary:
+
+```cpp
+// 0x00AB20D8 / 0x00AB20E8
+kDX = {-1,  0, +1,  0};
+kDZ = { 0, -1,  0, +1};
+
+// 0x00AB20F8, indexed by travel mode 0..8
+kTravelModeToTransitNetwork = {0, 1, 1, 2, 1, 2, 3, 4, 5};
+```
+
+`TransitSwitchEntryCost` at `0x0071CB20` has this effective Windows behavior:
+
+```cpp
+float __thiscall TransitSwitchEntryCost(void* trafficSimulator, uint32_t switchKey);
+```
+
+It indexes the transit-switch hash map at simulator `+0x70C`. For the returned
+switch record, it computes `usage / capacity`. If the ratio is at least `5.0`,
+it returns a huge cost. Otherwise it returns:
+
+```cpp
+switchBaseCost * congestionToInverseSpeedCurve(ratio) * *(float*)(sim + 0x720)
+```
+
+The switch record fields used here match the Mac symbol binary:
+
+| Offset | Meaning |
+| ---: | --- |
+| `+0x04` | usage/current volume |
+| `+0x08` | base transit-switch cost |
+| `+0x0C` | capacity |
 
 The following call uses `cISC4NetworkOccupant::HasAnyNetworkFlag(mask)`.
 
@@ -869,6 +934,90 @@ Flow:
    - initialize parent/cost/score/edge fields;
    - call `0x006D88B0` to push the node into the priority queue.
 
+Groundwork from the Windows binary:
+
+```cpp
+using TripNodeHashMapGetNodeFn =
+    void*(__thiscall*)(void* tripNodeHashMap, uint32_t key);        // 0x006D7730
+using TripNodePriorityQueuePushFn =
+    void(__thiscall*)(void* priorityQueue, void* tripNode);         // 0x006D88B0
+using TransitSwitchEntryCostFn =
+    float(__thiscall*)(void* trafficSimulator, uint32_t switchKey); // 0x0071CB20
+```
+
+The pathfinder subobjects are:
+
+```cpp
+auto* queue = reinterpret_cast<uint8_t*>(pathFinder) + 0x114;
+auto* hashMap = reinterpret_cast<uint8_t*>(pathFinder) + 0x128;
+```
+
+A synthetic root insertion would look roughly like:
+
+```cpp
+uint32_t key =
+    0x10000000u |
+    (static_cast<uint32_t>(entryEdge) << 24) |
+    (static_cast<uint32_t>(travelMode) << 16) |
+    (static_cast<uint32_t>(x & 0xff) << 8) |
+    static_cast<uint32_t>(z & 0xff);
+
+auto* node = static_cast<uint8_t*>(TripNodeHashMapGetNode(hashMap, key));
+float cost = startCost[travelMode] + optionalTransitSwitchEntryCost;
+float heuristic = IsOutsideEnvelope(pathFinder, x, z)
+    ? static_cast<float>(xHeuristic[x] + zHeuristic[z])
+    : 0.0f;
+
+*reinterpret_cast<void**>(node + 0x04) = nullptr;
+*reinterpret_cast<float*>(node + 0x08) = cost;
+*reinterpret_cast<float*>(node + 0x0C) = cost + heuristic * pathFinderScale;
+node[0x11] = 0;
+node[0x10] = 1;
+node[0x12] = entryEdge;
+
+TripNodePriorityQueuePush(queue, node);
+```
+
+The most plausible candidate selection is:
+
+1. Use the `SetupPathFinderForLot` side table to identify the source lot.
+2. Find side-touching adjacent TE lots.
+3. Inspect only TE-lot cells on the side that touches the source lot, not
+   arbitrary cells inside the TE lot.
+4. Read the transit-switch occupancy grid at simulator `+0x704`; the grid cell
+   stores a nonzero switch key when a transit switch occupies that cell.
+5. For each nonzero switch key, derive `entryEdge` from the side between the
+   TE cell and the source lot using `kDX/kDZ`.
+6. Loop travel modes `0..8`, constrained by `pathFinder +0x66`.
+7. Check the path/edge data table at simulator `+0x58` for the chosen
+   travel-mode/network and `entryEdge`, mirroring the stock
+   `CreateStartNodes` test:
+
+```cpp
+if ((pathInfoForMode & (0xF << (entryEdge * 4))) == 0) {
+    skip;
+}
+```
+
+8. Include `TransitSwitchEntryCost(sim, switchKey)` in the root cost unless
+   testing proves the game charges that cost elsewhere after a switch-cell root
+   node is inserted.
+
+The switch-grid lookup shape seen in `FindPath` is:
+
+```cpp
+void* gridHolder = *reinterpret_cast<void**>(sim + 0x704);
+void* matrix = gridHolder->vtable[0x60 / 4](gridHolder);
+uint8_t* rows = *reinterpret_cast<uint8_t**>(matrix);
+uint8_t* row = rows + x * 0x0C;          // std::vector-like row object
+uint32_t* rowValues = *reinterpret_cast<uint32_t**>(row);
+uint32_t switchKey = rowValues[z];
+```
+
+This should be wrapped carefully and treated as provisional until tested in
+the Windows game. Bad bounds checks here would be far more dangerous than the
+current Option A source-rectangle retry.
+
 Why this is attractive:
 
 - It models the actual missing concept: starting at a transit-switch cell.
@@ -881,6 +1030,14 @@ Risks:
 - It depends on internal `cSC4PathFinder::TripNode` layout.
 - It depends on the hash-map and priority-queue helper addresses.
 - It must calculate valid starting edges and initial costs correctly.
+- It must avoid duplicate queue entries for the same root key. Stock
+  `CreateStartNodes` effectively creates distinct root keys; a synthetic scan
+  should keep a small local `seenKeys` set before pushing.
+- It probably needs to respect switch directionality more strictly than Option
+  A. The path-data edge test is the first guard, but it may not fully capture
+  building-exemplar transit-switch direction semantics.
+- It changes pathfinder internal state directly, so a crash or bad path is more
+  likely than with the current retry-through-TE-lot approach.
 - Incorrect root nodes could produce bad paths, non-reversible trips, or
   unstable queue/hash-map state.
 
