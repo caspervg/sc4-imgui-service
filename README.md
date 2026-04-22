@@ -95,6 +95,7 @@ Optional samples (deployed to `...\Documents\SimCity 4\Plugins\`):
 - `SC4DrawServiceSample.dll` (draw service UI + hooks)
 - `SC4RoadDecalSample.dll` (road decal rendering)
 - `SC4TerrainDecalSample.dll` (terrain decal editor and API sample)
+- `SC4TransitAccess.dll` (transit-enabled lot road-access sample)
 
 ## Provided Services
 

@@ -46,9 +46,9 @@ if(MSVC)
             set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
         endif()
     else()
-        # For Visual Studio (multi-config), default to Release runtime, but generator will override per-config
-        # The CMAKE_CONFIGURATION_TYPES will be handled by the generator
-        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+        # For Visual Studio (multi-config), use a generator expression so Debug
+        # builds link against the debug CRT while other configs use the release CRT.
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     endif()
 
     # Enable debugging in release builds
@@ -525,8 +525,42 @@ set_target_properties(SC4CameraViewInputSample PROPERTIES
 )
 
 
+# Transit Access sample DLL
+set(TRANSIT_ACCESS_SAMPLE_SOURCES
+        ${SC4RS_ROOT}/src/sample/TransitAccessDirector.cpp
+        ${SC4RS_ROOT}/src/utils/VersionDetection.cpp
+        ${SC4RS_ROOT}/src/utils/Logger.cpp
+)
+
+add_library(SC4TransitAccess SHARED ${TRANSIT_ACCESS_SAMPLE_SOURCES} ${SC4_COMMON_DIRECTOR_DEF})
+
+target_include_directories(SC4TransitAccess PRIVATE
+        ${SC4RS_ROOT}/src
+        ${SC4RS_ROOT}/src/service
+        ${IMGUI_DIR}
+)
+
+target_link_libraries(SC4TransitAccess PRIVATE
+        imgui
+        gzcom2
+        spdlog
+)
+
+if(WIN32)
+    target_link_libraries(SC4TransitAccess PRIVATE Version)
+endif()
+
+target_compile_definitions(SC4TransitAccess PRIVATE IMGUI_DLL_IMPORT)
+
+set_target_properties(SC4TransitAccess PROPERTIES
+        OUTPUT_NAME "SC4TransitAccess"
+        SUFFIX ".dll"
+        PREFIX ""
+)
+
+
 add_custom_target(SC4RenderServicesAllTargets
-        DEPENDS imgui SC4RenderServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample SC4RoadDecalSample SC4TerrainDecalSample SC4CameraViewInputSample
+        DEPENDS imgui SC4RenderServices SC4ImGuiSample SC4ImGuiSampleCity SC4ImGuiSampleDemo SC4ImGuiTextureSample SC4WorldProjectionSample SC4S3DCameraDebugSample SC4OverlayManagerSample SC4DrawServiceSample SC4RoadDecalSample SC4TerrainDecalSample SC4CameraViewInputSample SC4TransitAccess
 )
 
 # Automatic deployment to SC4 directories
@@ -648,6 +682,14 @@ if(WIN32 AND NOT DEFINED ENV{CI})
                 COMMENT "Deploying SC4CameraViewInputSample.dll to Plugins folder"
         )
 
+        add_custom_command(TARGET SC4TransitAccess POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:SC4TransitAccess>
+                "${SC4_PLUGINS_DIR}/"
+                COMMENT "Deploying SC4TransitAccess.dll to Plugins folder"
+        )
+
         message(STATUS "Deployment targets configured:")
         message(STATUS "  - imgui.dll -> ${SC4_INSTALL_DIR}/Apps/")
         message(STATUS "  - SC4RenderServices.dll -> ${SC4_PLUGINS_DIR}/")
@@ -660,6 +702,7 @@ if(WIN32 AND NOT DEFINED ENV{CI})
         message(STATUS "  - SC4RoadDecalSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4TerrainDecalSample.dll -> ${SC4_PLUGINS_DIR}/")
         message(STATUS "  - SC4CameraViewInputSample.dll -> ${SC4_PLUGINS_DIR}/")
+        message(STATUS "  - SC4TransitAccess.dll -> ${SC4_PLUGINS_DIR}/")
     else()
         message(WARNING "SC4 installation not found. Manual deployment required.")
     endif()
