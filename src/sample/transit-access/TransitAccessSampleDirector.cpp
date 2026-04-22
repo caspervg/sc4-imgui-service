@@ -6,15 +6,21 @@
 #include "cISC4LotConfiguration.h"
 #include "cISC4LotManager.h"
 #include "cISC4Occupant.h"
+#include "cISC4TrafficSimulator.h"
 #include "cISCPropertyHolder.h"
 #include "SC4List.h"
 #include "SC4Rect.h"
+#include "SC4Vector.h"
 #include "utils/Logger.h"
 #include "utils/VersionDetection.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <Windows.h>
 #include <array>
 #include <atomic>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -38,10 +44,13 @@ namespace {
     constexpr uintptr_t kCreateStartNodesAddress = 0x006D8A90;
     constexpr uintptr_t kSetupPathFinderForLotAddress = 0x00711610;
     constexpr uintptr_t kSpLotManagerAddress = 0x00B43D08;
+    constexpr uintptr_t kSpTrafficSimulatorAddress = 0x00B43DA8;
     constexpr uintptr_t kSpTrafficNetworkMapAddress = 0x00B43D54;
 
     constexpr size_t kJumpByteCount = 5;
     constexpr size_t kPatchByteCount = 6;
+    constexpr size_t kGetConnectedDestinationCountVTableIndex = 0x98 / sizeof(void*);
+    constexpr size_t kGetSubnetworksForLotVTableIndex = 0x9C / sizeof(void*);
     constexpr uint32_t kTransitSwitchPointProperty = 0xE90E25A1;
     constexpr uint32_t kStockRoadLikeNetworkMask = 0x00000449;
     constexpr uint32_t kStockLowPriorityFacingNetworkMask = 0x00000408;
@@ -90,13 +99,22 @@ namespace {
     using CreateStartNodesFn = bool(__thiscall*)(void*);
     using SetupPathFinderForLotFn = bool(__thiscall*)(void*, void*, cISC4Lot*);
     using RoadAccessMapLookupFn = uint8_t*(__thiscall*)(void*, int32_t*);
+    using GetConnectedDestinationCountFn = uint32_t(__thiscall*)(cISC4TrafficSimulator*, cISC4Lot*, int);
+    using GetSubnetworksForLotFn = bool(__thiscall*)(cISC4TrafficSimulator*, cISC4Lot*, SC4Vector<uint32_t>&);
 
     CalculateRoadAccessFn gOriginalCalculateRoadAccess = nullptr;
     CreateStartNodesFn gOriginalCreateStartNodes = nullptr;
     SetupPathFinderForLotFn gOriginalSetupPathFinderForLot = nullptr;
+    GetConnectedDestinationCountFn gOriginalGetConnectedDestinationCount = nullptr;
+    GetSubnetworksForLotFn gOriginalGetSubnetworksForLot = nullptr;
     std::atomic<uint32_t> gHookCallCount{0};
     std::atomic<uint32_t> gOriginalFailureCount{0};
     std::atomic<uint32_t> gExceptionSuccessCount{0};
+    std::atomic<uint32_t> gTrafficSimulatorHookInstallAttemptCount{0};
+    std::atomic<uint32_t> gDestinationHookCallCount{0};
+    std::atomic<uint32_t> gDestinationExceptionCount{0};
+    std::atomic<uint32_t> gSubnetworksHookCallCount{0};
+    std::atomic<uint32_t> gSubnetworksExceptionCount{0};
     std::atomic<uint32_t> gSetupPathFinderHookCallCount{0};
     std::atomic<uint32_t> gSetupPathFinderSuccessCount{0};
     std::atomic<uint32_t> gStartNodesHookCallCount{0};
@@ -109,6 +127,12 @@ namespace {
     std::unordered_map<void*, cISC4Lot*> gPathFinderSourceLots;
     thread_local bool gInsideCreateStartNodesRetry = false;
     bool gDirtRoadMaskPatchInstalled = false;
+    void** gTrafficSimulatorVTable = nullptr;
+    void* gOriginalGetConnectedDestinationCountSlot = nullptr;
+    void* gOriginalGetSubnetworksForLotSlot = nullptr;
+    bool gTrafficSimulatorHookInstalled = false;
+
+    bool InstallTrafficSimulatorHook();
 
     const char* LevelName(spdlog::level::level_enum level) {
         switch (level) {
@@ -156,6 +180,10 @@ namespace {
 
     cISC4LotManager* GetLotManager() {
         return *reinterpret_cast<cISC4LotManager**>(kSpLotManagerAddress);
+    }
+
+    cISC4TrafficSimulator* GetTrafficSimulator() {
+        return *reinterpret_cast<cISC4TrafficSimulator**>(kSpTrafficSimulatorAddress);
     }
 
     void* GetTrafficNetworkMap() {
@@ -451,6 +479,33 @@ namespace {
         return xRangesOverlap && (a.bottomRightY + 1 == b.topLeftY || b.bottomRightY + 1 == a.topLeftY);
     }
 
+    bool RectsTouchOrNearlyTouchBySide(
+        const SC4Rect<int32_t>& a,
+        const SC4Rect<int32_t>& b,
+        int32_t maxGapCells) {
+
+        const bool zRangesOverlap = a.topLeftY <= b.bottomRightY && b.topLeftY <= a.bottomRightY;
+        const bool xRangesOverlap = a.topLeftX <= b.bottomRightX && b.topLeftX <= a.bottomRightX;
+
+        if (zRangesOverlap) {
+            const int32_t gapAB = b.topLeftX - a.bottomRightX - 1;
+            const int32_t gapBA = a.topLeftX - b.bottomRightX - 1;
+            if ((gapAB >= 0 && gapAB <= maxGapCells) || (gapBA >= 0 && gapBA <= maxGapCells)) {
+                return true;
+            }
+        }
+
+        if (xRangesOverlap) {
+            const int32_t gapAB = b.topLeftY - a.bottomRightY - 1;
+            const int32_t gapBA = a.topLeftY - b.bottomRightY - 1;
+            if ((gapAB >= 0 && gapAB <= maxGapCells) || (gapBA >= 0 && gapBA <= maxGapCells)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     bool RectsEqual(const SC4Rect<int32_t>& a, const SC4Rect<int32_t>& b) {
         return a.topLeftX == b.topLeftX &&
                a.topLeftY == b.topLeftY &&
@@ -634,6 +689,100 @@ namespace {
         return result;
     }
 
+    std::string FormatSubnetworks(const SC4Vector<uint32_t>& subnetworks) {
+        if (subnetworks.empty()) {
+            return "[]";
+        }
+
+        std::string result = "[";
+        bool first = true;
+        for (uint32_t subnetwork : subnetworks) {
+            if (!first) {
+                result += ",";
+            }
+            result += std::to_string(subnetwork);
+            first = false;
+        }
+        result += "]";
+        return result;
+    }
+
+    std::vector<cISC4Lot*> GetNearbySideLots(cISC4Lot* lot, int32_t maxGapCells) {
+        std::vector<cISC4Lot*> result;
+        cISC4LotManager* lotManager = GetLotManager();
+        if (!lot || !lotManager) {
+            return result;
+        }
+
+        SC4Rect<int32_t> sourceBounds;
+        if (!lot->GetBoundingRect(sourceBounds)) {
+            return result;
+        }
+
+        const int32_t width = sourceBounds.bottomRightX - sourceBounds.topLeftX + 1;
+        const int32_t height = sourceBounds.bottomRightY - sourceBounds.topLeftY + 1;
+        std::unordered_set<cISC4Lot*> candidates;
+        if (width > 0 && height > 0) {
+            candidates.reserve(static_cast<size_t>((width * 2) + (height * 2)));
+        }
+
+        auto addCandidate = [&](cISC4Lot* candidate) {
+            if (candidate && candidate != lot) {
+                candidates.insert(candidate);
+            }
+        };
+
+        SC4List<cISC4Lot*> surroundingLots;
+        if (lotManager->GetLotsSurroundingLot(lot, surroundingLots, 0)) {
+            for (cISC4Lot* candidate : surroundingLots) {
+                addCandidate(candidate);
+            }
+        }
+
+        SC4List<cISC4Lot*> rectLots;
+        const int32_t scanRadius = maxGapCells + 1;
+        if (lotManager->GetLotsInCellRect(
+                rectLots,
+                std::max(0, sourceBounds.topLeftX - scanRadius),
+                std::max(0, sourceBounds.topLeftY - scanRadius),
+                sourceBounds.bottomRightX + scanRadius,
+                sourceBounds.bottomRightY + scanRadius,
+                true)) {
+            for (cISC4Lot* candidate : rectLots) {
+                addCandidate(candidate);
+            }
+        }
+
+        for (int32_t x = sourceBounds.topLeftX - scanRadius; x <= sourceBounds.bottomRightX + scanRadius; ++x) {
+            for (int32_t z = sourceBounds.topLeftY - scanRadius; z <= sourceBounds.bottomRightY + scanRadius; ++z) {
+                if (x < 0 || z < 0) {
+                    continue;
+                }
+                addCandidate(lotManager->GetLot(x, z, true));
+                addCandidate(lotManager->GetLot(x, z, false));
+            }
+        }
+
+        result.reserve(candidates.size());
+        for (cISC4Lot* candidate : candidates) {
+            SC4Rect<int32_t> candidateBounds;
+            if (candidate->GetBoundingRect(candidateBounds) &&
+                RectsTouchOrNearlyTouchBySide(sourceBounds, candidateBounds, maxGapCells)) {
+                result.push_back(candidate);
+            }
+        }
+
+        return result;
+    }
+
+    std::vector<cISC4Lot*> GetSideTouchingAdjacentLots(cISC4Lot* lot) {
+        return GetNearbySideLots(lot, 0);
+    }
+
+    std::vector<cISC4Lot*> GetTransitAccessCandidateLots(cISC4Lot* lot) {
+        return GetNearbySideLots(lot, 1);
+    }
+
     bool IsTransitEnabledLot(cISC4Lot* lot) {
         if (!lot) {
             return false;
@@ -770,34 +919,7 @@ namespace {
 
         TRANSIT_LOG_TRACE("TransitAccess: scanning adjacent lots for source {}", DescribeLot(lot));
 
-        const int32_t width = sourceBounds.bottomRightX - sourceBounds.topLeftX + 1;
-        const int32_t height = sourceBounds.bottomRightY - sourceBounds.topLeftY + 1;
-        std::unordered_set<cISC4Lot*> candidates;
-        if (width > 0 && height > 0) {
-            candidates.reserve(static_cast<size_t>((width * 2) + (height * 2)));
-        }
-
-        auto addCandidate = [&](cISC4Lot* candidate) {
-            if (!candidate || candidate == lot) {
-                return;
-            }
-            candidates.insert(candidate);
-        };
-        auto addCandidateAt = [&](int32_t x, int32_t z) {
-            if (x < 0 || z < 0) {
-                return;
-            }
-            addCandidate(lotManager->GetLot(x, z, true));
-        };
-
-        for (int32_t x = sourceBounds.topLeftX; x <= sourceBounds.bottomRightX; ++x) {
-            addCandidateAt(x, sourceBounds.topLeftY - 1);
-            addCandidateAt(x, sourceBounds.bottomRightY + 1);
-        }
-        for (int32_t z = sourceBounds.topLeftY; z <= sourceBounds.bottomRightY; ++z) {
-            addCandidateAt(sourceBounds.topLeftX - 1, z);
-            addCandidateAt(sourceBounds.bottomRightX + 1, z);
-        }
+        const std::vector<cISC4Lot*> candidates = GetSideTouchingAdjacentLots(lot);
 
         TRANSIT_LOG_TRACE("TransitAccess: found {} unique adjacent lot candidates for source {}",
                   candidates.size(),
@@ -829,6 +951,139 @@ namespace {
         std::unordered_set<cISC4Lot*> seenMatches;
         CollectAdjacentTransitEnabledRoadAccessLots(lot, matches, seenMatches);
         return !matches.empty();
+    }
+
+    bool GetLotSubnetworks(cISC4TrafficSimulator* trafficSimulator, cISC4Lot* lot, SC4Vector<uint32_t>& subnetworks) {
+        subnetworks.clear();
+        if (!trafficSimulator || !lot) {
+            return false;
+        }
+
+        if (gOriginalGetSubnetworksForLot) {
+            return gOriginalGetSubnetworksForLot(trafficSimulator, lot, subnetworks);
+        }
+
+        return trafficSimulator->GetSubnetworksForLot(lot, subnetworks);
+    }
+
+    bool GatherAdjacentTransitSubnetworks(
+        cISC4TrafficSimulator* trafficSimulator,
+        cISC4Lot* lot,
+        SC4Vector<uint32_t>& subnetworks,
+        bool shouldLog) {
+
+        subnetworks.clear();
+        if (!trafficSimulator || !lot) {
+            return false;
+        }
+
+        std::unordered_set<uint32_t> seen;
+        const std::vector<cISC4Lot*> candidates = GetTransitAccessCandidateLots(lot);
+        if (shouldLog) {
+            TRANSIT_LOG_TRACE("TransitAccess: subnetworks fallback source [{}] has {} candidate lots",
+                              DescribeLot(lot),
+                              candidates.size());
+        }
+
+        for (cISC4Lot* candidate : candidates) {
+            if (!IsTransitEnabledLot(candidate)) {
+                continue;
+            }
+
+            SC4Vector<uint32_t> candidateSubnetworks;
+            if (!GetLotSubnetworks(trafficSimulator, candidate, candidateSubnetworks)) {
+                continue;
+            }
+
+            for (uint32_t subnetwork : candidateSubnetworks) {
+                if (seen.insert(subnetwork).second) {
+                    subnetworks.push_back(subnetwork);
+                }
+            }
+
+            if (shouldLog) {
+                TRANSIT_LOG_TRACE("TransitAccess: subnetworks fallback candidate [{}] subnetworks={}",
+                                  DescribeLot(candidate),
+                                  FormatSubnetworks(candidateSubnetworks));
+            }
+        }
+
+        return !subnetworks.empty();
+    }
+
+    bool GetSubnetworksAroundLot(
+        cISC4TrafficSimulator* trafficSimulator,
+        cISC4Lot* lot,
+        SC4Vector<uint32_t>& subnetworks) {
+
+        subnetworks.clear();
+        if (!trafficSimulator || !lot) {
+            return false;
+        }
+
+        SC4Rect<int32_t> bounds;
+        if (!lot->GetBoundingRect(bounds)) {
+            return false;
+        }
+
+        SC4Rect<int> scanBounds;
+        scanBounds.topLeftX = std::max(0, bounds.topLeftX - 1);
+        scanBounds.topLeftY = std::max(0, bounds.topLeftY - 1);
+        scanBounds.bottomRightX = bounds.bottomRightX + 1;
+        scanBounds.bottomRightY = bounds.bottomRightY + 1;
+        return trafficSimulator->GetSubnetworksInRectangle(scanBounds, subnetworks);
+    }
+
+    uint32_t GetAdjacentTransitEnabledDestinationCount(
+        cISC4TrafficSimulator* trafficSimulator,
+        cISC4Lot* lot,
+        int purpose,
+        bool shouldLog) {
+
+        if (!trafficSimulator || !lot || !gOriginalGetConnectedDestinationCount) {
+            return 0;
+        }
+
+        uint32_t bestCount = 0;
+        const std::vector<cISC4Lot*> candidates = GetTransitAccessCandidateLots(lot);
+
+        if (shouldLog) {
+            SC4Vector<uint32_t> sourceSubnetworks;
+            GetLotSubnetworks(trafficSimulator, lot, sourceSubnetworks);
+            TRANSIT_LOG_TRACE("TransitAccess: destination fallback source [{}] purpose={} stockSubnetworks={} candidateCount={}",
+                              DescribeLot(lot),
+                              purpose,
+                              FormatSubnetworks(sourceSubnetworks),
+                              candidates.size());
+        }
+
+        for (cISC4Lot* candidate : candidates) {
+            if (!IsTransitEnabledLot(candidate)) {
+                continue;
+            }
+
+            const uint32_t candidateCount = gOriginalGetConnectedDestinationCount(
+                trafficSimulator,
+                candidate,
+                purpose);
+            bestCount = std::max(bestCount, candidateCount);
+
+            if (shouldLog || candidateCount > 0) {
+                SC4Vector<uint32_t> candidateSubnetworks;
+                SC4Vector<uint32_t> perimeterSubnetworks;
+                GetLotSubnetworks(trafficSimulator, candidate, candidateSubnetworks);
+                GetSubnetworksAroundLot(trafficSimulator, candidate, perimeterSubnetworks);
+
+                TRANSIT_LOG_TRACE("TransitAccess: destination fallback candidate [{}] purpose={} count={} lotSubnetworks={} perimeterSubnetworks={}",
+                                  DescribeLot(candidate),
+                                  purpose,
+                                  candidateCount,
+                                  FormatSubnetworks(candidateSubnetworks),
+                                  FormatSubnetworks(perimeterSubnetworks));
+            }
+        }
+
+        return bestCount;
     }
 
     int32_t ReadPathFinderInt32(void* pathFinder, ptrdiff_t offset) {
@@ -996,6 +1251,8 @@ namespace {
     }
 
     bool __fastcall HookCalculateRoadAccess(cISC4Lot* lot, void*) {
+        InstallTrafficSimulatorHook();
+
         const uint32_t hookCallCount = ++gHookCallCount;
         if (!lot) {
             LOG_WARN("TransitAccess: CalculateRoadAccess hook received null lot");
@@ -1037,6 +1294,97 @@ namespace {
             TRANSIT_LOG_TRACE("TransitAccess: no TE road-access exception for {}", DescribeLot(lot));
         }
         return false;
+    }
+
+    bool __fastcall HookGetSubnetworksForLot(
+        cISC4TrafficSimulator* trafficSimulator,
+        void*,
+        cISC4Lot* lot,
+        SC4Vector<uint32_t>& subnetworks) {
+
+        const uint32_t hookCallCount = ++gSubnetworksHookCallCount;
+        const bool shouldLog = ShouldLogSample(hookCallCount);
+
+        bool stockResult = false;
+        if (gOriginalGetSubnetworksForLot) {
+            stockResult = gOriginalGetSubnetworksForLot(trafficSimulator, lot, subnetworks);
+        } else {
+            subnetworks.clear();
+        }
+
+        if (stockResult && !subnetworks.empty()) {
+            if (shouldLog) {
+                TRANSIT_LOG_TRACE("TransitAccess: GetSubnetworksForLot stock lot [{}] subnetworks={}",
+                                  DescribeLot(lot),
+                                  FormatSubnetworks(subnetworks));
+            }
+            return true;
+        }
+
+        SC4Vector<uint32_t> fallbackSubnetworks;
+        if (GatherAdjacentTransitSubnetworks(trafficSimulator, lot, fallbackSubnetworks, shouldLog)) {
+            subnetworks = fallbackSubnetworks;
+            const uint32_t exceptionCount = ++gSubnetworksExceptionCount;
+            if (ShouldLog(spdlog::level::info) && ShouldLogSample(exceptionCount)) {
+                LOG_INFO("TransitAccess: subnetworks TE fallback lot [{}] subnetworks={} totalSubnetworksFallbacks={}",
+                         DescribeLot(lot),
+                         FormatSubnetworks(subnetworks),
+                         exceptionCount);
+            }
+            return true;
+        }
+
+        if (shouldLog) {
+            TRANSIT_LOG_TRACE("TransitAccess: GetSubnetworksForLot no TE fallback lot [{}]", DescribeLot(lot));
+        }
+        return stockResult;
+    }
+
+    uint32_t __fastcall HookGetConnectedDestinationCount(
+        cISC4TrafficSimulator* trafficSimulator,
+        void*,
+        cISC4Lot* lot,
+        int purpose) {
+
+        const uint32_t stockCount = gOriginalGetConnectedDestinationCount
+            ? gOriginalGetConnectedDestinationCount(trafficSimulator, lot, purpose)
+            : 0;
+        const uint32_t hookCallCount = ++gDestinationHookCallCount;
+        const bool shouldLog = ShouldLogSample(hookCallCount);
+
+        if (stockCount != 0 || purpose < 0 || purpose > 1) {
+            if (shouldLog) {
+                TRANSIT_LOG_TRACE("TransitAccess: GetConnectedDestinationCount stock lot [{}] purpose={} count={}",
+                                  DescribeLot(lot),
+                                  purpose,
+                                  stockCount);
+            }
+            return stockCount;
+        }
+
+        const uint32_t fallbackCount = GetAdjacentTransitEnabledDestinationCount(
+            trafficSimulator,
+            lot,
+            purpose,
+            shouldLog);
+        if (fallbackCount != 0) {
+            const uint32_t exceptionCount = ++gDestinationExceptionCount;
+            if (ShouldLog(spdlog::level::info) && ShouldLogSample(exceptionCount)) {
+                LOG_INFO("TransitAccess: destination-count TE fallback lot [{}] purpose={} count={} totalDestinationFallbacks={}",
+                         DescribeLot(lot),
+                         purpose,
+                         fallbackCount,
+                         exceptionCount);
+            }
+            return fallbackCount;
+        }
+
+        if (shouldLog) {
+            TRANSIT_LOG_TRACE("TransitAccess: GetConnectedDestinationCount no TE fallback lot [{}] purpose={}",
+                              DescribeLot(lot),
+                              purpose);
+        }
+        return 0;
     }
 
     bool __fastcall HookCreateStartNodes(void* pathFinder, void*) {
@@ -1160,6 +1508,127 @@ namespace {
         return setupSucceeded;
     }
 
+    bool InstallTrafficSimulatorHook() {
+        if (gTrafficSimulatorHookInstalled) {
+            return true;
+        }
+
+        const uint32_t attemptCount = ++gTrafficSimulatorHookInstallAttemptCount;
+        cISC4TrafficSimulator* trafficSimulator = GetTrafficSimulator();
+        if (!trafficSimulator) {
+            if (ShouldLogSample(attemptCount)) {
+                TRANSIT_LOG_DEBUG("TransitAccess: traffic simulator not available for destination/subnetwork hook attempt={}",
+                                  attemptCount);
+            }
+            return false;
+        }
+
+        auto** vtable = *reinterpret_cast<void***>(trafficSimulator);
+        if (!vtable ||
+            !vtable[kGetConnectedDestinationCountVTableIndex] ||
+            !vtable[kGetSubnetworksForLotVTableIndex]) {
+            LOG_WARN("TransitAccess: traffic simulator {} has invalid vtable attempt={}",
+                     reinterpret_cast<void*>(trafficSimulator),
+                     attemptCount);
+            return false;
+        }
+
+        void** destinationSlot = &vtable[kGetConnectedDestinationCountVTableIndex];
+        void** subnetworksSlot = &vtable[kGetSubnetworksForLotVTableIndex];
+        gTrafficSimulatorVTable = vtable;
+
+        if (*destinationSlot != reinterpret_cast<void*>(&HookGetConnectedDestinationCount)) {
+            DWORD oldProtect = 0;
+            if (!VirtualProtect(destinationSlot, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                LOG_ERROR("TransitAccess: VirtualProtect failed while installing destination-count hook");
+                return false;
+            }
+
+            gOriginalGetConnectedDestinationCountSlot = *destinationSlot;
+            gOriginalGetConnectedDestinationCount =
+                reinterpret_cast<GetConnectedDestinationCountFn>(gOriginalGetConnectedDestinationCountSlot);
+            *destinationSlot = reinterpret_cast<void*>(&HookGetConnectedDestinationCount);
+
+            FlushInstructionCache(GetCurrentProcess(), destinationSlot, sizeof(void*));
+            VirtualProtect(destinationSlot, sizeof(void*), oldProtect, &oldProtect);
+            LOG_INFO("TransitAccess: installed destination-count hook trafficSimulator={} vtable={} slot={} original={}",
+                     reinterpret_cast<void*>(trafficSimulator),
+                     reinterpret_cast<void*>(vtable),
+                     reinterpret_cast<void*>(destinationSlot),
+                     gOriginalGetConnectedDestinationCountSlot);
+        } else {
+            gOriginalGetConnectedDestinationCount =
+                reinterpret_cast<GetConnectedDestinationCountFn>(gOriginalGetConnectedDestinationCountSlot);
+        }
+
+        if (*subnetworksSlot != reinterpret_cast<void*>(&HookGetSubnetworksForLot)) {
+            DWORD oldProtect = 0;
+            if (!VirtualProtect(subnetworksSlot, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                LOG_ERROR("TransitAccess: VirtualProtect failed while installing subnetworks hook");
+                return false;
+            }
+
+            gOriginalGetSubnetworksForLotSlot = *subnetworksSlot;
+            gOriginalGetSubnetworksForLot =
+                reinterpret_cast<GetSubnetworksForLotFn>(gOriginalGetSubnetworksForLotSlot);
+            *subnetworksSlot = reinterpret_cast<void*>(&HookGetSubnetworksForLot);
+
+            FlushInstructionCache(GetCurrentProcess(), subnetworksSlot, sizeof(void*));
+            VirtualProtect(subnetworksSlot, sizeof(void*), oldProtect, &oldProtect);
+            LOG_INFO("TransitAccess: installed subnetworks hook vtable={} slot={} original={}",
+                     reinterpret_cast<void*>(vtable),
+                     reinterpret_cast<void*>(subnetworksSlot),
+                     gOriginalGetSubnetworksForLotSlot);
+        } else {
+            gOriginalGetSubnetworksForLot =
+                reinterpret_cast<GetSubnetworksForLotFn>(gOriginalGetSubnetworksForLotSlot);
+        }
+
+        gTrafficSimulatorHookInstalled = true;
+        return true;
+    }
+
+    void UninstallTrafficSimulatorHook() {
+        if (!gTrafficSimulatorHookInstalled || !gTrafficSimulatorVTable) {
+            return;
+        }
+
+        if (gOriginalGetConnectedDestinationCountSlot) {
+            void** destinationSlot = &gTrafficSimulatorVTable[kGetConnectedDestinationCountVTableIndex];
+            DWORD oldProtect = 0;
+            if (VirtualProtect(destinationSlot, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                if (*destinationSlot == reinterpret_cast<void*>(&HookGetConnectedDestinationCount)) {
+                    *destinationSlot = gOriginalGetConnectedDestinationCountSlot;
+                    FlushInstructionCache(GetCurrentProcess(), destinationSlot, sizeof(void*));
+                    TRANSIT_LOG_DEBUG("TransitAccess: restored destination-count hook slot {}",
+                                      reinterpret_cast<void*>(destinationSlot));
+                }
+                VirtualProtect(destinationSlot, sizeof(void*), oldProtect, &oldProtect);
+            }
+        }
+
+        if (gOriginalGetSubnetworksForLotSlot) {
+            void** subnetworksSlot = &gTrafficSimulatorVTable[kGetSubnetworksForLotVTableIndex];
+            DWORD oldProtect = 0;
+            if (VirtualProtect(subnetworksSlot, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                if (*subnetworksSlot == reinterpret_cast<void*>(&HookGetSubnetworksForLot)) {
+                    *subnetworksSlot = gOriginalGetSubnetworksForLotSlot;
+                    FlushInstructionCache(GetCurrentProcess(), subnetworksSlot, sizeof(void*));
+                    TRANSIT_LOG_DEBUG("TransitAccess: restored subnetworks hook slot {}",
+                                      reinterpret_cast<void*>(subnetworksSlot));
+                }
+                VirtualProtect(subnetworksSlot, sizeof(void*), oldProtect, &oldProtect);
+            }
+        }
+
+        gTrafficSimulatorVTable = nullptr;
+        gOriginalGetConnectedDestinationCountSlot = nullptr;
+        gOriginalGetConnectedDestinationCount = nullptr;
+        gOriginalGetSubnetworksForLotSlot = nullptr;
+        gOriginalGetSubnetworksForLot = nullptr;
+        gTrafficSimulatorHookInstalled = false;
+    }
+
     InlineHook gCalculateRoadAccessHook{
         "cSC4Lot::CalculateRoadAccess",
         kCalculateRoadAccessAddress,
@@ -1202,8 +1671,9 @@ public:
             return true;
         }
 
-        TRANSIT_LOG_DEBUG("TransitAccess: globals lotManager=0x{:08X} trafficNetworkMap=0x{:08X}",
+        TRANSIT_LOG_DEBUG("TransitAccess: globals lotManager=0x{:08X} trafficSimulator=0x{:08X} trafficNetworkMap=0x{:08X}",
                   reinterpret_cast<uint32_t>(GetLotManager()),
+                  reinterpret_cast<uint32_t>(GetTrafficSimulator()),
                   reinterpret_cast<uint32_t>(GetTrafficNetworkMap()));
         TRANSIT_LOG_DEBUG("TransitAccess: road-like network mask stock=0x{:08X} dirtRoad=0x{:08X} effective=0x{:08X}",
                   kStockRoadLikeNetworkMask,
@@ -1221,6 +1691,7 @@ public:
             LOG_INFO("TransitAccess: installed road-access hook at 0x{:08X}",
                      static_cast<uint32_t>(gCalculateRoadAccessHook.patchAddress));
         }
+        InstallTrafficSimulatorHook();
 
         if (InstallInlineHook(gCreateStartNodesHook)) {
             gOriginalCreateStartNodes =
@@ -1242,10 +1713,15 @@ public:
     }
 
     bool PostAppShutdown() override {
-        LOG_INFO("TransitAccess: PostAppShutdown roadAccessCalls={} roadAccessOriginalFailures={} roadAccessExceptionSuccesses={} setupPathFinderCalls={} setupPathFinderSuccesses={} startNodeCalls={} startNodeOriginalFailures={} startNodeSideTableHits={} startNodeFallbacks={} startNodeMissingSourceLots={} startNodeRetrySuccesses={} outstandingSourceLotRecords={}",
+        LOG_INFO("TransitAccess: PostAppShutdown roadAccessCalls={} roadAccessOriginalFailures={} roadAccessExceptionSuccesses={} trafficHookAttempts={} destinationCalls={} destinationFallbacks={} subnetworkCalls={} subnetworkFallbacks={} setupPathFinderCalls={} setupPathFinderSuccesses={} startNodeCalls={} startNodeOriginalFailures={} startNodeSideTableHits={} startNodeFallbacks={} startNodeMissingSourceLots={} startNodeRetrySuccesses={} outstandingSourceLotRecords={}",
                  gHookCallCount.load(),
                  gOriginalFailureCount.load(),
                  gExceptionSuccessCount.load(),
+                 gTrafficSimulatorHookInstallAttemptCount.load(),
+                 gDestinationHookCallCount.load(),
+                 gDestinationExceptionCount.load(),
+                 gSubnetworksHookCallCount.load(),
+                 gSubnetworksExceptionCount.load(),
                  gSetupPathFinderHookCallCount.load(),
                  gSetupPathFinderSuccessCount.load(),
                  gStartNodesHookCallCount.load(),
@@ -1255,6 +1731,7 @@ public:
                  gStartNodesMissingSourceLotCount.load(),
                  gStartNodesRetrySuccessCount.load(),
                  GetRecordedSourceLotCount());
+        UninstallTrafficSimulatorHook();
         if (gDirtRoadMaskPatchInstalled) {
             PatchDirtRoadMasks(false);
             gDirtRoadMaskPatchInstalled = false;
