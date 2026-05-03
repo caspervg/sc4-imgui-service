@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <mutex>
+#include <unordered_set>
 #include <vector>
 
 #include "cISTETerrain.h"
@@ -21,10 +23,10 @@ namespace
 
     struct TerrainDrawRect
     {
-        int zStart;
         int xStart;
-        int zEnd;
+        int zStart;
         int xEnd;
+        int zEnd;
     };
 
     struct TerrainGridDimensions
@@ -79,6 +81,81 @@ namespace
         float minV = 0.0f;
         float maxV = 1.0f;
     };
+
+    struct ClipDebugSample
+    {
+        bool captured = false;
+        int cellX = 0;
+        int cellZ = 0;
+        std::array<ClipVertex, 4> slotVertices{};
+        std::array<ClipVertex, 4> activeVertices{};
+        bool activeTransformUsed = false;
+        bool slotMayIntersect = false;
+        bool activeMayIntersect = false;
+        bool slotAllInside = false;
+        bool activeAllInside = false;
+    };
+
+    [[nodiscard]] bool ShouldLogOverlayOnce(const uint32_t overlayId, const char* const category) noexcept
+    {
+        static std::mutex mutex;
+        static std::unordered_set<uint64_t> seenKeys;
+
+        const uint64_t key =
+            (static_cast<uint64_t>(std::hash<std::string_view>{}(category)) << 32u) | overlayId;
+
+        std::lock_guard lock(mutex);
+        return seenKeys.insert(key).second;
+    }
+
+    void LogClipDebugSample(const uint32_t overlayId,
+                            const ClipDebugSample& sample,
+                            const ClipBounds& bounds,
+                            const bool clipU,
+                            const bool clipV) noexcept
+    {
+        if (!sample.captured) {
+            return;
+        }
+
+        const auto& sv = sample.slotVertices;
+        LOG_WARN(
+            "TerrainDecalRenderer: overlay {} clip sample cell=({}, {}) bounds u[{:.3f},{:.3f}] v[{:.3f},{:.3f}] clipU={} clipV={} "
+            "slot intersects={} inside={} "
+            "slotUVs=[({:.3f},{:.3f}), ({:.3f},{:.3f}), ({:.3f},{:.3f}), ({:.3f},{:.3f})] "
+            "activeUsed={} active intersects={} inside={} "
+            "activeUVs=[({:.3f},{:.3f}), ({:.3f},{:.3f}), ({:.3f},{:.3f}), ({:.3f},{:.3f})]",
+            overlayId,
+            sample.cellX,
+            sample.cellZ,
+            bounds.minU,
+            bounds.maxU,
+            bounds.minV,
+            bounds.maxV,
+            clipU,
+            clipV,
+            sample.slotMayIntersect,
+            sample.slotAllInside,
+            sv[0].clipU,
+            sv[0].clipV,
+            sv[1].clipU,
+            sv[1].clipV,
+            sv[2].clipU,
+            sv[2].clipV,
+            sv[3].clipU,
+            sv[3].clipV,
+            sample.activeTransformUsed,
+            sample.activeMayIntersect,
+            sample.activeAllInside,
+            sample.activeVertices[0].clipU,
+            sample.activeVertices[0].clipV,
+            sample.activeVertices[1].clipU,
+            sample.activeVertices[1].clipV,
+            sample.activeVertices[2].clipU,
+            sample.activeVertices[2].clipV,
+            sample.activeVertices[3].clipU,
+            sample.activeVertices[3].clipV);
+    }
 
     [[nodiscard]] uint32_t NormalizeOverlayIdKey(const uint32_t overlayId) noexcept
     {
@@ -500,6 +577,15 @@ namespace
         return reinterpret_cast<const CellInfoEntry*>(rows[row].data);
     }
 
+    [[nodiscard]] const uint16_t* ReadAllLevelCellIndices(const uintptr_t globalAddress) noexcept
+    {
+        if (globalAddress == 0) {
+            return nullptr;
+        }
+
+        return reinterpret_cast<const uint16_t*>(*reinterpret_cast<const void* const*>(globalAddress));
+    }
+
     [[nodiscard]] TerrainGridDimensions ReadTerrainGridDimensions(const TerrainDecal::HookAddresses& addresses) noexcept
     {
         TerrainGridDimensions result{};
@@ -534,21 +620,21 @@ namespace
                                                        const TerrainGridDimensions& dimensions) noexcept
     {
         TerrainDrawRect result{};
-        result.zStart = std::clamp(rect.zStart, 0, std::max(0, dimensions.cellCountZ));
         result.xStart = std::clamp(rect.xStart, 0, std::max(0, dimensions.cellCountX));
-        result.zEnd = std::clamp(rect.zEnd, result.zStart, std::max(0, dimensions.cellCountZ));
+        result.zStart = std::clamp(rect.zStart, 0, std::max(0, dimensions.cellCountZ));
         result.xEnd = std::clamp(rect.xEnd, result.xStart, std::max(0, dimensions.cellCountX));
+        result.zEnd = std::clamp(rect.zEnd, result.zStart, std::max(0, dimensions.cellCountZ));
         return result;
     }
 
     [[nodiscard]] TerrainDrawRect MakeExclusiveTerrainDrawRect(const TerrainDrawRect& rect) noexcept
     {
         TerrainDrawRect result = rect;
-        if (result.zEnd < std::numeric_limits<int>::max()) {
-            result.zEnd += 1;
-        }
         if (result.xEnd < std::numeric_limits<int>::max()) {
             result.xEnd += 1;
+        }
+        if (result.zEnd < std::numeric_limits<int>::max()) {
+            result.zEnd += 1;
         }
         return result;
     }
@@ -570,37 +656,49 @@ namespace
 
         const auto* const vertices = GetTerrainVertexArray(addresses.terrainGridVerticesPtr);
         const auto* const rows = ReadRowTable(addresses.terrainCellInfoRowsPtr);
+        const auto* const allLevelCellIndices = ReadAllLevelCellIndices(addresses.allLevelCellIndicesPtr);
         if (!vertices) {
             return false;
         }
-        if (!rows) {
+        if (!rows || !allLevelCellIndices) {
             return false;
         }
 
-        const int vertexCountZ = dimensions.vertexCountZ;
-        int rowRelativeIndex = cellZ;
-        const auto* const row = GetCellInfoRow(rows, cellX);
-        if (row && cellZ >= 0) {
-            rowRelativeIndex = row[cellZ].vertexIndex;
+        const int vertexCountX = dimensions.vertexCountX;
+        const int levelIndexStride = dimensions.cellCountX + 1;
+        const int levelIndexBase = levelIndexStride * cellZ;
+        const uint16_t levelEntryStart = allLevelCellIndices[levelIndexBase + cellX];
+        const uint16_t levelEntryEnd = allLevelCellIndices[levelIndexBase + cellX + 1];
+
+        int rowRelativeIndex = cellX;
+        const CellInfoEntry* levelEntry = nullptr;
+        if (levelEntryStart < levelEntryEnd) {
+            const auto* const row = GetCellInfoRow(rows, cellZ);
+            if (!row) {
+                return false;
+            }
+            levelEntry = &row[levelEntryStart];
+            rowRelativeIndex = levelEntry->vertexIndex;
         }
         if (rowRelativeIndex < 0) {
             return false;
         }
 
-        const int baseIndex = cellX * vertexCountZ + rowRelativeIndex;
-        if (baseIndex + vertexCountZ + 1 >= dimensions.vertexCount) {
+        const int baseIndex = cellZ * vertexCountX + rowRelativeIndex;
+        if (baseIndex + vertexCountX + 1 >= dimensions.vertexCount) {
             return false;
         }
 
         result[0] = vertices[baseIndex];
-        result[1] = vertices[baseIndex + vertexCountZ];
-        result[2] = vertices[baseIndex + vertexCountZ + 1];
+        result[1] = vertices[baseIndex + vertexCountX];
+        result[2] = vertices[baseIndex + vertexCountX + 1];
         result[3] = vertices[baseIndex + 1];
 
-        if (row) {
-            // sLevelCellInfos is indexed per X column; each entry stores the Z-relative vertex
-            // index plus an optional flattened cell height for that column/Z cell.
-            const float flatY = std::bit_cast<float>(row[cellZ].flatYBits);
+        if (levelEntry) {
+            // The game uses sAllLevelCellIndices to map a terrain cell (x, z) to an optional
+            // leveled entry in sLevelCellInfos[z]. When present, that entry overrides both the
+            // X-relative vertex index and the flattened cell height.
+            const float flatY = std::bit_cast<float>(levelEntry->flatYBits);
             result[0].y = flatY;
             result[1].y = flatY;
             result[2].y = flatY;
@@ -687,29 +785,26 @@ namespace TerrainDecal
         const bool debugOverridesActive = !overlayUvWindows_.empty();
 
         if (!options_.enableClippedRendering) {
+            LOG_WARN("TerrainDecalRenderer: falling through to vanilla because clipped rendering is disabled");
             return DrawResult::FallThroughToVanilla;
         }
 
         if (!request.addresses || !request.terrain || !request.overlaySlotBase || !request.drawContext) {
-            if (debugOverridesActive) {
-                LOG_WARN("TerrainDecalRenderer: falling through before draw because request is incomplete "
-                         "(addresses={}, terrain={}, slotBase={}, drawContext={})",
-                         request.addresses != nullptr,
-                         request.terrain != nullptr,
-                         request.overlaySlotBase != nullptr,
-                         request.drawContext != nullptr);
-            }
+            LOG_WARN("TerrainDecalRenderer: falling through before draw because request is incomplete "
+                     "(addresses={}, terrain={}, slotBase={}, drawContext={})",
+                     request.addresses != nullptr,
+                     request.terrain != nullptr,
+                     request.overlaySlotBase != nullptr,
+                     request.drawContext != nullptr);
             return DrawResult::FallThroughToVanilla;
         }
 
         const OverlaySlotView slot = ReadOverlaySlotView(request.overlaySlotBase);
         if (slot.state != -1 || !slot.matrix) {
-            if (debugOverridesActive) {
-                LOG_WARN("TerrainDecalRenderer: falling through because slot state/matrix is invalid "
-                         "(state={}, matrix={})",
-                         slot.state,
-                         static_cast<const void*>(slot.matrix));
-            }
+            LOG_WARN("TerrainDecalRenderer: falling through because slot state/matrix is invalid "
+                     "(state={}, matrix={})",
+                     slot.state,
+                     static_cast<const void*>(slot.matrix));
             return DrawResult::FallThroughToVanilla;
         }
 
@@ -755,6 +850,8 @@ namespace TerrainDecal
                      effectiveClipV);
         }
         if (!effectiveClipU && !effectiveClipV && !hasUvOverride && !hasModifiers) {
+            LOG_WARN("TerrainDecalRenderer: overlay {} falling through because no clip or override path is active",
+                     overlayId);
             return DrawResult::FallThroughToVanilla;
         }
 
@@ -793,14 +890,14 @@ namespace TerrainDecal
         }
 
         const TerrainDrawRect sourceRect = MakeExclusiveTerrainDrawRect(slot.rect);
-        if (sourceRect.zStart >= sourceRect.zEnd || sourceRect.xStart >= sourceRect.xEnd) {
+        if (sourceRect.xStart >= sourceRect.xEnd || sourceRect.zStart >= sourceRect.zEnd) {
             if (hasUvOverride || debugOverridesActive) {
                 LOG_DEBUG("TerrainDecalRenderer: overlay {} handled as empty rect [{},{}]-[{},{}]",
                          overlayId,
-                         sourceRect.zStart,
                          sourceRect.xStart,
-                         sourceRect.zEnd,
-                         sourceRect.xEnd);
+                         sourceRect.zStart,
+                         sourceRect.xEnd,
+                         sourceRect.zEnd);
             }
             return DrawResult::Handled;
         }
@@ -817,26 +914,27 @@ namespace TerrainDecal
         }
 
         const TerrainDrawRect drawRect = ClampTerrainDrawRect(sourceRect, dimensions);
-        if (drawRect.zStart >= drawRect.zEnd || drawRect.xStart >= drawRect.xEnd) {
+        if (drawRect.xStart >= drawRect.xEnd || drawRect.zStart >= drawRect.zEnd) {
             if (hasUvOverride || debugOverridesActive) {
                 LOG_DEBUG("TerrainDecalRenderer: overlay {} handled with empty clamped rect [{},{}]-[{},{}]",
                          overlayId,
-                         drawRect.zStart,
                          drawRect.xStart,
-                         drawRect.zEnd,
-                         drawRect.xEnd);
+                         drawRect.zStart,
+                         drawRect.xEnd,
+                         drawRect.zEnd);
             }
             return DrawResult::Handled;
         }
 
         std::vector<PackedTerrainVertex> outputVertices;
         bool loadedAnyTerrainCells = false;
-        const int cellCount = std::max(0, drawRect.zEnd - drawRect.zStart) *
-                              std::max(0, drawRect.xEnd - drawRect.xStart);
+        ClipDebugSample clipDebugSample{};
+        const int cellCount = std::max(0, drawRect.xEnd - drawRect.xStart) *
+                              std::max(0, drawRect.zEnd - drawRect.zStart);
         outputVertices.reserve(static_cast<size_t>(cellCount) * 12);
 
-        for (int cellX = drawRect.xStart; cellX < drawRect.xEnd; ++cellX) {
-            for (int cellZ = drawRect.zStart; cellZ < drawRect.zEnd; ++cellZ) {
+        for (int cellZ = drawRect.zStart; cellZ < drawRect.zEnd; ++cellZ) {
+            for (int cellX = drawRect.xStart; cellX < drawRect.xEnd; ++cellX) {
                 std::array<ClipVertex, 4> vertices{};
                 std::array<PackedTerrainVertex, 4> sourceVertices{};
                 if (!LoadTerrainCellVertices(*request.addresses, cellX, cellZ, sourceVertices)) {
@@ -847,6 +945,32 @@ namespace TerrainDecal
 
                 for (size_t i = 0; i < sourceVertices.size(); ++i) {
                     vertices[i].vertex = sourceVertices[i];
+                }
+
+                if (!clipDebugSample.captured) {
+                    clipDebugSample.captured = true;
+                    clipDebugSample.cellX = cellX;
+                    clipDebugSample.cellZ = cellZ;
+                    clipDebugSample.slotVertices = vertices;
+                    for (auto& vertex : clipDebugSample.slotVertices) {
+                        EvaluateFootprintUv(slot.matrix, vertex);
+                    }
+                    clipDebugSample.slotMayIntersect =
+                        QuadMayIntersectClipBox(clipDebugSample.slotVertices, effectiveClipU, effectiveClipV, clipBounds);
+                    clipDebugSample.slotAllInside =
+                        AllVerticesInside(clipDebugSample.slotVertices, effectiveClipU, effectiveClipV, clipBounds);
+
+                    if (request.activeTexTransform) {
+                        clipDebugSample.activeTransformUsed = true;
+                        clipDebugSample.activeVertices = vertices;
+                        for (auto& vertex : clipDebugSample.activeVertices) {
+                            EvaluateFootprintUv(request.activeTexTransform, vertex);
+                        }
+                        clipDebugSample.activeMayIntersect =
+                            QuadMayIntersectClipBox(clipDebugSample.activeVertices, effectiveClipU, effectiveClipV, clipBounds);
+                        clipDebugSample.activeAllInside =
+                            AllVerticesInside(clipDebugSample.activeVertices, effectiveClipU, effectiveClipV, clipBounds);
+                    }
                 }
 
                 for (auto& vertex : vertices) {
@@ -877,13 +1001,18 @@ namespace TerrainDecal
 
         if (outputVertices.empty()) {
             if (!loadedAnyTerrainCells) {
-                if (hasUvOverride || debugOverridesActive) {
+                if (ShouldLogOverlayOnce(overlayId, "no-terrain-cells")) {
                     LOG_WARN("TerrainDecalRenderer: overlay {} fell through because no terrain cells loaded", overlayId);
                 }
                 return DrawResult::FallThroughToVanilla;
             }
 
             if (!hasUvOverride && !hasModifiers) {
+                if (ShouldLogOverlayOnce(overlayId, "clip-empty")) {
+                    LOG_WARN("TerrainDecalRenderer: overlay {} fell through because clipping produced no output vertices",
+                             overlayId);
+                    LogClipDebugSample(overlayId, clipDebugSample, clipBounds, effectiveClipU, effectiveClipV);
+                }
                 return DrawResult::FallThroughToVanilla;
             }
 

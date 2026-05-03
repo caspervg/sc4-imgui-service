@@ -24,6 +24,7 @@ namespace TerrainDecal
         uintptr_t terrainGridVerticesPtr = 0;
         uintptr_t terrainCellInfoRowsPtr = 0;
         uintptr_t levelCellQuadsPtr = 0;
+        uintptr_t allLevelCellIndicesPtr = 0;
         uintptr_t terrainCellCountXPtr = 0;
         uintptr_t terrainCellCountZPtr = 0;
         uintptr_t terrainVertexCountXPtr = 0;
