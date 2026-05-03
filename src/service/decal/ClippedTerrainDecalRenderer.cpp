@@ -5,6 +5,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "cISTETerrain.h"
@@ -20,10 +21,10 @@ namespace
 
     struct TerrainDrawRect
     {
-        int left;
-        int top;
-        int right;
-        int bottom;
+        int zStart;
+        int xStart;
+        int zEnd;
+        int xEnd;
     };
 
     struct TerrainGridDimensions
@@ -31,6 +32,7 @@ namespace
         int cellCountX = 0;
         int cellCountZ = 0;
         int vertexCountX = 0;
+        int vertexCountZ = 0;
         int vertexCount = 0;
     };
 
@@ -489,29 +491,6 @@ namespace
         return *reinterpret_cast<const PackedTerrainVertex* const*>(globalAddress);
     }
 
-    [[nodiscard]] const std::byte* GetPreparedCellVertexRow(const uintptr_t globalAddress, const int row) noexcept
-    {
-        if (globalAddress == 0 || row < 0) {
-            return nullptr;
-        }
-
-        const auto* const rows = *reinterpret_cast<const RowTableEntry* const*>(globalAddress);
-        if (!rows) {
-            return nullptr;
-        }
-
-        return reinterpret_cast<const std::byte*>(rows[row].data);
-    }
-
-    [[nodiscard]] const RowTableEntry* GetPreparedCellVertexRowsTable(const uintptr_t globalAddress) noexcept
-    {
-        if (globalAddress == 0) {
-            return nullptr;
-        }
-
-        return *reinterpret_cast<const RowTableEntry* const*>(globalAddress);
-    }
-
     [[nodiscard]] const CellInfoEntry* GetCellInfoRow(const RowTableEntry* rows, const int row) noexcept
     {
         if (!rows || row < 0) {
@@ -536,8 +515,16 @@ namespace
             result.vertexCountX = *reinterpret_cast<const int*>(addresses.terrainVertexCountXPtr);
         }
 
+        if (addresses.terrainVertexCountZPtr != 0) {
+            result.vertexCountZ = *reinterpret_cast<const int*>(addresses.terrainVertexCountZPtr);
+        }
+
         if (addresses.terrainVertexCountPtr != 0) {
             result.vertexCount = *reinterpret_cast<const int*>(addresses.terrainVertexCountPtr);
+        }
+
+        if (result.vertexCountZ <= 0 && result.vertexCountX > 0 && result.vertexCount > 0) {
+            result.vertexCountZ = result.vertexCount / result.vertexCountX;
         }
 
         return result;
@@ -547,10 +534,22 @@ namespace
                                                        const TerrainGridDimensions& dimensions) noexcept
     {
         TerrainDrawRect result{};
-        result.left = std::clamp(rect.left, 0, std::max(0, dimensions.cellCountX));
-        result.top = std::clamp(rect.top, 0, std::max(0, dimensions.cellCountZ));
-        result.right = std::clamp(rect.right, result.left, std::max(0, dimensions.cellCountX));
-        result.bottom = std::clamp(rect.bottom, result.top, std::max(0, dimensions.cellCountZ));
+        result.zStart = std::clamp(rect.zStart, 0, std::max(0, dimensions.cellCountZ));
+        result.xStart = std::clamp(rect.xStart, 0, std::max(0, dimensions.cellCountX));
+        result.zEnd = std::clamp(rect.zEnd, result.zStart, std::max(0, dimensions.cellCountZ));
+        result.xEnd = std::clamp(rect.xEnd, result.xStart, std::max(0, dimensions.cellCountX));
+        return result;
+    }
+
+    [[nodiscard]] TerrainDrawRect MakeExclusiveTerrainDrawRect(const TerrainDrawRect& rect) noexcept
+    {
+        TerrainDrawRect result = rect;
+        if (result.zEnd < std::numeric_limits<int>::max()) {
+            result.zEnd += 1;
+        }
+        if (result.xEnd < std::numeric_limits<int>::max()) {
+            result.xEnd += 1;
+        }
         return result;
     }
 
@@ -561,25 +560,12 @@ namespace
     {
         const TerrainGridDimensions dimensions = ReadTerrainGridDimensions(addresses);
         if (dimensions.cellCountX <= 0 || dimensions.cellCountZ <= 0 ||
-            dimensions.vertexCountX <= 0 || dimensions.vertexCount <= 0) {
+            dimensions.vertexCountX <= 0 || dimensions.vertexCountZ <= 0 || dimensions.vertexCount <= 0) {
             return false;
         }
 
         if (cellX >= dimensions.cellCountX || cellZ >= dimensions.cellCountZ) {
             return false;
-        }
-
-        const auto* const preparedRow = GetPreparedCellVertexRow(addresses.terrainPreparedCellVerticesRowsPtr, cellZ);
-        if (preparedRow) {
-            const size_t rowOffset = static_cast<size_t>(cellX) * sizeof(PackedTerrainVertex) * 4;
-            const auto* const preparedVertices =
-                reinterpret_cast<const PackedTerrainVertex*>(preparedRow + rowOffset);
-
-            result[0] = preparedVertices[0];
-            result[1] = preparedVertices[1];
-            result[2] = preparedVertices[2];
-            result[3] = preparedVertices[3];
-            return true;
         }
 
         const auto* const vertices = GetTerrainVertexArray(addresses.terrainGridVerticesPtr);
@@ -591,28 +577,30 @@ namespace
             return false;
         }
 
-        const int vertexCountX = dimensions.vertexCountX;
-        int rowRelativeIndex = cellX;
-        const auto* const row = GetCellInfoRow(rows, cellZ);
-        if (row && cellX >= 0) {
-            rowRelativeIndex = row[cellX].vertexIndex;
+        const int vertexCountZ = dimensions.vertexCountZ;
+        int rowRelativeIndex = cellZ;
+        const auto* const row = GetCellInfoRow(rows, cellX);
+        if (row && cellZ >= 0) {
+            rowRelativeIndex = row[cellZ].vertexIndex;
         }
         if (rowRelativeIndex < 0) {
             return false;
         }
 
-        const int baseIndex = cellZ * vertexCountX + rowRelativeIndex;
-        if (baseIndex + vertexCountX + 1 >= dimensions.vertexCount) {
+        const int baseIndex = cellX * vertexCountZ + rowRelativeIndex;
+        if (baseIndex + vertexCountZ + 1 >= dimensions.vertexCount) {
             return false;
         }
 
         result[0] = vertices[baseIndex];
-        result[1] = vertices[baseIndex + vertexCountX];
-        result[2] = vertices[baseIndex + vertexCountX + 1];
+        result[1] = vertices[baseIndex + vertexCountZ];
+        result[2] = vertices[baseIndex + vertexCountZ + 1];
         result[3] = vertices[baseIndex + 1];
 
         if (row) {
-            const float flatY = std::bit_cast<float>(row[cellX].flatYBits);
+            // sLevelCellInfos is indexed per X column; each entry stores the Z-relative vertex
+            // index plus an optional flattened cell height for that column/Z cell.
+            const float flatY = std::bit_cast<float>(row[cellZ].flatYBits);
             result[0].y = flatY;
             result[1].y = flatY;
             result[2].y = flatY;
@@ -804,14 +792,15 @@ namespace TerrainDecal
             return DrawResult::FallThroughToVanilla;
         }
 
-        if (slot.rect.left >= slot.rect.right || slot.rect.top >= slot.rect.bottom) {
+        const TerrainDrawRect sourceRect = MakeExclusiveTerrainDrawRect(slot.rect);
+        if (sourceRect.zStart >= sourceRect.zEnd || sourceRect.xStart >= sourceRect.xEnd) {
             if (hasUvOverride || debugOverridesActive) {
                 LOG_DEBUG("TerrainDecalRenderer: overlay {} handled as empty rect [{},{}]-[{},{}]",
                          overlayId,
-                         slot.rect.left,
-                         slot.rect.top,
-                         slot.rect.right,
-                         slot.rect.bottom);
+                         sourceRect.zStart,
+                         sourceRect.xStart,
+                         sourceRect.zEnd,
+                         sourceRect.xEnd);
             }
             return DrawResult::Handled;
         }
@@ -827,26 +816,27 @@ namespace TerrainDecal
             return DrawResult::Handled;
         }
 
-        const TerrainDrawRect drawRect = ClampTerrainDrawRect(slot.rect, dimensions);
-        if (drawRect.left >= drawRect.right || drawRect.top >= drawRect.bottom) {
+        const TerrainDrawRect drawRect = ClampTerrainDrawRect(sourceRect, dimensions);
+        if (drawRect.zStart >= drawRect.zEnd || drawRect.xStart >= drawRect.xEnd) {
             if (hasUvOverride || debugOverridesActive) {
                 LOG_DEBUG("TerrainDecalRenderer: overlay {} handled with empty clamped rect [{},{}]-[{},{}]",
                          overlayId,
-                         drawRect.left,
-                         drawRect.top,
-                         drawRect.right,
-                         drawRect.bottom);
+                         drawRect.zStart,
+                         drawRect.xStart,
+                         drawRect.zEnd,
+                         drawRect.xEnd);
             }
             return DrawResult::Handled;
         }
 
         std::vector<PackedTerrainVertex> outputVertices;
         bool loadedAnyTerrainCells = false;
-        const int cellCount = std::max(0, drawRect.right - drawRect.left) * std::max(0, drawRect.bottom - drawRect.top);
+        const int cellCount = std::max(0, drawRect.zEnd - drawRect.zStart) *
+                              std::max(0, drawRect.xEnd - drawRect.xStart);
         outputVertices.reserve(static_cast<size_t>(cellCount) * 12);
 
-        for (int cellZ = drawRect.top; cellZ < drawRect.bottom; ++cellZ) {
-            for (int cellX = drawRect.left; cellX < drawRect.right; ++cellX) {
+        for (int cellX = drawRect.xStart; cellX < drawRect.xEnd; ++cellX) {
+            for (int cellZ = drawRect.zStart; cellZ < drawRect.zEnd; ++cellZ) {
                 std::array<ClipVertex, 4> vertices{};
                 std::array<PackedTerrainVertex, 4> sourceVertices{};
                 if (!LoadTerrainCellVertices(*request.addresses, cellX, cellZ, sourceVertices)) {
@@ -890,6 +880,10 @@ namespace TerrainDecal
                 if (hasUvOverride || debugOverridesActive) {
                     LOG_WARN("TerrainDecalRenderer: overlay {} fell through because no terrain cells loaded", overlayId);
                 }
+                return DrawResult::FallThroughToVanilla;
+            }
+
+            if (!hasUvOverride && !hasModifiers) {
                 return DrawResult::FallThroughToVanilla;
             }
 
