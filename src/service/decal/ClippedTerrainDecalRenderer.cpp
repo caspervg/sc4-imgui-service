@@ -278,6 +278,13 @@ namespace
     };
 
     using DrawPrimsFn = void(__thiscall*)(SC4DrawContext*, uint32_t, uint32_t, uint32_t, const void*);
+    using SetDepthOffsetFn = void(__thiscall*)(SC4DrawContext*, int);
+
+    // Vanilla DrawDecals uses depth offset 2; DrawShadows uses 3 (higher = closer to camera in SC4).
+    // Setting our decals to 4 ensures shadow DrawRect calls lose the depth test against our pixels.
+    // Set to 2 to match vanilla (shadows will render on top); set higher to render above shadows.
+    constexpr int kCustomDecalDepthOffset = 4;
+    constexpr int kVanillaDecalDepthOffset = 2;
 
     [[nodiscard]] OverlaySlotView ReadOverlaySlotView(const std::byte* slotBase)
     {
@@ -1171,6 +1178,11 @@ namespace TerrainDecal
             setTexTransform(request.drawContext, texTransformOverride.adjusted.data(), request.activeTexTransformStage);
         }
 
+        if (request.addresses->setDepthOffset) {
+            const auto setDepthOffset = reinterpret_cast<SetDepthOffsetFn>(request.addresses->setDepthOffset);
+            setDepthOffset(request.drawContext, kCustomDecalDepthOffset);
+        }
+
         const auto drawPrims = reinterpret_cast<DrawPrimsFn>(request.addresses->drawPrims);
         drawPrims(request.drawContext,
                   kPrimTypeTriangleList,
@@ -1179,6 +1191,11 @@ namespace TerrainDecal
                   outputVertices.data());
         if (hasUvOverride || debugOverridesActive) {
             LOG_TRACE("TerrainDecalRenderer: overlay {} submitted {} vertices", overlayId, outputVertices.size());
+        }
+
+        if (request.addresses->setDepthOffset) {
+            const auto setDepthOffset = reinterpret_cast<SetDepthOffsetFn>(request.addresses->setDepthOffset);
+            setDepthOffset(request.drawContext, kVanillaDecalDepthOffset);
         }
 
         if (texTransformOverride.active) {

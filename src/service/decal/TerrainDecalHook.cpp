@@ -100,10 +100,14 @@ namespace TerrainDecal
 
     void TerrainDecalHook::Uninstall()
     {
+        drawShadowsRoughCallSitePatch_.Uninstall();
+        drawShadowsCallSitePatch_.Uninstall();
         setTexTransformCallSitePatch_.Uninstall();
         callSitePatch_.Uninstall();
         currentTexTransformValid_ = false;
         currentTexTransformStage_ = -1;
+        inShadowReRenderPhase_ = false;
+        activeDecalSlotIndices_.clear();
         renderer_.ClearOverlayUvWindows();
 
         if (sActiveHook_ == this) {
@@ -170,6 +174,60 @@ namespace TerrainDecal
         sActiveHook_->HandleSetTexTransform4Call_(drawContext, matrix, stage);
     }
 
+    void __fastcall TerrainDecalHook::DrawShadowsWrapThunk(void* overlayManager,
+                                                           void*,
+                                                           float* worldMatrix,
+                                                           SC4DrawContext* drawCtx,
+                                                           int* decalIds)
+    {
+        if (!sActiveHook_) {
+            return;
+        }
+
+        sActiveHook_->HandleDrawShadowsCall_(overlayManager, worldMatrix, drawCtx, decalIds,
+                                             sActiveHook_->drawShadowsCallSitePatch_);
+    }
+
+    void __fastcall TerrainDecalHook::DrawShadowsRoughWrapThunk(void* overlayManager,
+                                                                void*,
+                                                                float* worldMatrix,
+                                                                SC4DrawContext* drawCtx,
+                                                                int* decalIds)
+    {
+        if (!sActiveHook_) {
+            return;
+        }
+
+        sActiveHook_->HandleDrawShadowsCall_(overlayManager, worldMatrix, drawCtx, decalIds,
+                                             sActiveHook_->drawShadowsRoughCallSitePatch_);
+    }
+
+    void TerrainDecalHook::HandleDrawShadowsCall_(void* overlayManager,
+                                                  float* worldMatrix,
+                                                  SC4DrawContext* drawCtx,
+                                                  int* decalIds,
+                                                  const RelativeCallPatch& patch)
+    {
+        const auto originalTarget = patch.GetOriginalTarget();
+        if (originalTarget) {
+            const auto original = reinterpret_cast<DrawShadowsFn>(originalTarget);
+            original(overlayManager, worldMatrix, drawCtx, decalIds);
+        }
+
+        if (!activeDecalSlotIndices_.empty() && addresses_) {
+            inShadowReRenderPhase_ = true;
+            const auto drawDecals = reinterpret_cast<DrawDecalsFn>(addresses_->drawDecals);
+            struct { const uint32_t* begin; const uint32_t* end; } range = {
+                activeDecalSlotIndices_.data(),
+                activeDecalSlotIndices_.data() + activeDecalSlotIndices_.size(),
+            };
+            drawDecals(overlayManager, worldMatrix, drawCtx, reinterpret_cast<int*>(&range));
+            inShadowReRenderPhase_ = false;
+        }
+
+        activeDecalSlotIndices_.clear();
+    }
+
     void TerrainDecalHook::HandleDrawRectCall_(void* overlayManager, SC4DrawContext* drawContext, const cRZRect* rect)
     {
         DrawRequest request{
@@ -207,6 +265,14 @@ namespace TerrainDecal
         currentTexTransformStage_ = -1;
 
         if (result == DrawResult::Handled) {
+            if (!inShadowReRenderPhase_ && request.overlaySlotBase && addresses_) {
+                const auto slotArrayBase = *reinterpret_cast<const uintptr_t*>(
+                    static_cast<const char*>(overlayManager) + addresses_->overlaySlotsPtrOffset);
+                const auto slotBase = reinterpret_cast<uintptr_t>(request.overlaySlotBase);
+                const auto slotIndex = static_cast<uint32_t>(
+                    (slotBase - slotArrayBase) / static_cast<uintptr_t>(addresses_->overlaySlotStride));
+                activeDecalSlotIndices_.push_back(slotIndex);
+            }
             return;
         }
 
