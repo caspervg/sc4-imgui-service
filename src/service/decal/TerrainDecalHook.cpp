@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <utility>
 
 #include "GZServPtrs.h"
@@ -15,6 +17,20 @@
 namespace TerrainDecal
 {
     TerrainDecalHook* TerrainDecalHook::sActiveHook_ = nullptr;
+
+    namespace
+    {
+        [[nodiscard]] bool IsRingDecalSlot(const std::byte* const slotBase) noexcept
+        {
+            if (!slotBase) {
+                return false;
+            }
+
+            uint32_t flags = 0;
+            std::memcpy(&flags, slotBase + 4, sizeof(flags));
+            return (flags & 0x80u) == 0u;
+        }
+    }
 
     TerrainDecalHook::TerrainDecalHook(const Options options)
         : options_(options)
@@ -172,6 +188,13 @@ namespace TerrainDecal
         if (addresses_ && rect && addresses_->overlayRectOffset > 0) {
             request.overlayRectOffset = addresses_->overlayRectOffset;
             request.overlaySlotBase = reinterpret_cast<const std::byte*>(rect) - addresses_->overlayRectOffset;
+        }
+
+        if (request.overlaySlotBase && IsRingDecalSlot(request.overlaySlotBase)) {
+            currentTexTransformValid_ = false;
+            currentTexTransformStage_ = -1;
+            CallOriginalDrawRect_(overlayManager, drawContext, rect);
+            return;
         }
 
         const cISC4AppPtr app;

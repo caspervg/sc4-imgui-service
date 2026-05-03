@@ -87,6 +87,7 @@ namespace
         bool captured = false;
         int cellX = 0;
         int cellZ = 0;
+        std::array<PackedTerrainVertex, 4> sourceVertices{};
         std::array<ClipVertex, 4> slotVertices{};
         std::array<ClipVertex, 4> activeVertices{};
         bool activeTransformUsed = false;
@@ -119,7 +120,7 @@ namespace
         }
 
         const auto& sv = sample.slotVertices;
-        LOG_WARN(
+        LOG_TRACE(
             "TerrainDecalRenderer: overlay {} clip sample cell=({}, {}) bounds u[{:.3f},{:.3f}] v[{:.3f},{:.3f}] clipU={} clipV={} "
             "slot intersects={} inside={} "
             "slotUVs=[({:.3f},{:.3f}), ({:.3f},{:.3f}), ({:.3f},{:.3f}), ({:.3f},{:.3f})] "
@@ -155,6 +156,107 @@ namespace
             sample.activeVertices[2].clipV,
             sample.activeVertices[3].clipU,
             sample.activeVertices[3].clipV);
+    }
+
+    [[nodiscard]] bool HasFinitePosition(const PackedTerrainVertex& vertex) noexcept
+    {
+        return std::isfinite(vertex.x) && std::isfinite(vertex.y) && std::isfinite(vertex.z);
+    }
+
+    [[nodiscard]] bool AllSourceVerticesHaveFinitePosition(const std::array<PackedTerrainVertex, 4>& vertices) noexcept
+    {
+        return std::all_of(vertices.begin(), vertices.end(), [](const PackedTerrainVertex& vertex) {
+            return HasFinitePosition(vertex);
+        });
+    }
+
+    [[nodiscard]] bool MatrixHasFiniteComponents(const float* matrix) noexcept
+    {
+        if (!matrix) {
+            return false;
+        }
+
+        for (size_t i = 0; i < 16; ++i) {
+            if (!std::isfinite(matrix[i])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    void LogClipNanSample(const uint32_t overlayId,
+                          const ClipDebugSample& sample,
+                          const float* matrix) noexcept
+    {
+        if (!sample.captured) {
+            return;
+        }
+
+        const auto& sv = sample.sourceVertices;
+        LOG_TRACE(
+            "TerrainDecalRenderer: overlay {} clip-nan cell=({}, {}) finiteSource={} finiteMatrix={} "
+            "source=[({:.3f},{:.3f},{:.3f}), ({:.3f},{:.3f},{:.3f}), ({:.3f},{:.3f},{:.3f}), ({:.3f},{:.3f},{:.3f})] "
+            "matrixRow0=[{:.6f},{:.6f},{:.6f},{:.6f}] matrixRow1=[{:.6f},{:.6f},{:.6f},{:.6f}] "
+            "matrixRow2=[{:.6f},{:.6f},{:.6f},{:.6f}] matrixRow3=[{:.6f},{:.6f},{:.6f},{:.6f}]",
+            overlayId,
+            sample.cellX,
+            sample.cellZ,
+            AllSourceVerticesHaveFinitePosition(sample.sourceVertices),
+            MatrixHasFiniteComponents(matrix),
+            sv[0].x,
+            sv[0].y,
+            sv[0].z,
+            sv[1].x,
+            sv[1].y,
+            sv[1].z,
+            sv[2].x,
+            sv[2].y,
+            sv[2].z,
+            sv[3].x,
+            sv[3].y,
+            sv[3].z,
+            matrix ? matrix[0] : 0.0f,
+            matrix ? matrix[4] : 0.0f,
+            matrix ? matrix[8] : 0.0f,
+            matrix ? matrix[12] : 0.0f,
+            matrix ? matrix[1] : 0.0f,
+            matrix ? matrix[5] : 0.0f,
+            matrix ? matrix[9] : 0.0f,
+            matrix ? matrix[13] : 0.0f,
+            matrix ? matrix[2] : 0.0f,
+            matrix ? matrix[6] : 0.0f,
+            matrix ? matrix[10] : 0.0f,
+            matrix ? matrix[14] : 0.0f,
+            matrix ? matrix[3] : 0.0f,
+            matrix ? matrix[7] : 0.0f,
+            matrix ? matrix[11] : 0.0f,
+            matrix ? matrix[15] : 0.0f);
+    }
+
+    void LogNonFiniteMatrixSample(const uint32_t overlayId, const float* matrix) noexcept
+    {
+        LOG_TRACE(
+            "TerrainDecalRenderer: overlay {} falling through because slot matrix is non-finite "
+            "matrixRow0=[{:.6f},{:.6f},{:.6f},{:.6f}] matrixRow1=[{:.6f},{:.6f},{:.6f},{:.6f}] "
+            "matrixRow2=[{:.6f},{:.6f},{:.6f},{:.6f}] matrixRow3=[{:.6f},{:.6f},{:.6f},{:.6f}]",
+            overlayId,
+            matrix ? matrix[0] : 0.0f,
+            matrix ? matrix[4] : 0.0f,
+            matrix ? matrix[8] : 0.0f,
+            matrix ? matrix[12] : 0.0f,
+            matrix ? matrix[1] : 0.0f,
+            matrix ? matrix[5] : 0.0f,
+            matrix ? matrix[9] : 0.0f,
+            matrix ? matrix[13] : 0.0f,
+            matrix ? matrix[2] : 0.0f,
+            matrix ? matrix[6] : 0.0f,
+            matrix ? matrix[10] : 0.0f,
+            matrix ? matrix[14] : 0.0f,
+            matrix ? matrix[3] : 0.0f,
+            matrix ? matrix[7] : 0.0f,
+            matrix ? matrix[11] : 0.0f,
+            matrix ? matrix[15] : 0.0f);
     }
 
     [[nodiscard]] uint32_t NormalizeOverlayIdKey(const uint32_t overlayId) noexcept
@@ -409,11 +511,27 @@ namespace
         return out;
     }
 
+    [[nodiscard]] bool HasFiniteClipUv(const ClipVertex& vertex) noexcept
+    {
+        return std::isfinite(vertex.clipU) && std::isfinite(vertex.clipV);
+    }
+
+    [[nodiscard]] bool AllVerticesHaveFiniteClipUv(const std::array<ClipVertex, 4>& vertices) noexcept
+    {
+        return std::all_of(vertices.begin(), vertices.end(), [](const ClipVertex& vertex) {
+            return HasFiniteClipUv(vertex);
+        });
+    }
+
     [[nodiscard]] bool IsInsidePlane(const ClipVertex& v,
                                      const bool useU,
                                      const bool isMinPlane,
                                      const float limit) noexcept
     {
+        if (!HasFiniteClipUv(v)) {
+            return false;
+        }
+
         const float value = useU ? v.clipU : v.clipV;
         return isMinPlane ? value >= (limit - kClipEpsilon) : value <= (limit + kClipEpsilon);
     }
@@ -502,6 +620,10 @@ namespace
                                          const ClipBounds& bounds) noexcept
     {
         return std::all_of(vertices.begin(), vertices.end(), [clipU, clipV, bounds](const ClipVertex& vertex) {
+            if (!HasFiniteClipUv(vertex)) {
+                return false;
+            }
+
             const bool insideU = !clipU || (vertex.clipU >= bounds.minU - kClipEpsilon &&
                                             vertex.clipU <= bounds.maxU + kClipEpsilon);
             const bool insideV = !clipV || (vertex.clipV >= bounds.minV - kClipEpsilon &&
@@ -516,6 +638,10 @@ namespace
                                        const ClipBounds& bounds) noexcept
     {
         return std::any_of(vertices.begin(), vertices.end(), [clipU, clipV, bounds](const ClipVertex& vertex) {
+            if (!HasFiniteClipUv(vertex)) {
+                return false;
+            }
+
             const bool insideU = !clipU || (vertex.clipU >= bounds.minU - kClipEpsilon &&
                                             vertex.clipU <= bounds.maxU + kClipEpsilon);
             const bool insideV = !clipV || (vertex.clipV >= bounds.minV - kClipEpsilon &&
@@ -529,6 +655,10 @@ namespace
                                                const bool clipV,
                                                const ClipBounds& bounds) noexcept
     {
+        if (!AllVerticesHaveFiniteClipUv(vertices)) {
+            return false;
+        }
+
         if (AnyVertexInside(vertices, clipU, clipV, bounds)) {
             return true;
         }
@@ -812,6 +942,12 @@ namespace TerrainDecal
         const bool clipV = ShouldClipV(slot.flags);
         uint32_t overlayId = 0;
         const bool hasOverlayId = TryResolveOverlayId(request, overlayId);
+        if (!MatrixHasFiniteComponents(slot.matrix)) {
+            if (ShouldLogOverlayOnce(overlayId, "nonfinite-matrix")) {
+                LogNonFiniteMatrixSample(overlayId, slot.matrix);
+            }
+            return DrawResult::FallThroughToVanilla;
+        }
         TerrainDecalOverlayOverrides overrides{};
         TerrainDecalUvWindow storedUvWindow{};
         bool hasUvOverride = false;
@@ -951,6 +1087,7 @@ namespace TerrainDecal
                     clipDebugSample.captured = true;
                     clipDebugSample.cellX = cellX;
                     clipDebugSample.cellZ = cellZ;
+                    clipDebugSample.sourceVertices = sourceVertices;
                     clipDebugSample.slotVertices = vertices;
                     for (auto& vertex : clipDebugSample.slotVertices) {
                         EvaluateFootprintUv(slot.matrix, vertex);
@@ -975,6 +1112,13 @@ namespace TerrainDecal
 
                 for (auto& vertex : vertices) {
                     EvaluateFootprintUv(slot.matrix, vertex);
+                }
+
+                if (!AllVerticesHaveFiniteClipUv(vertices)) {
+                    if (ShouldLogOverlayOnce(overlayId, "clip-nan")) {
+                        LogClipNanSample(overlayId, clipDebugSample, slot.matrix);
+                    }
+                    continue;
                 }
 
                 if (!QuadMayIntersectClipBox(vertices, effectiveClipU, effectiveClipV, clipBounds)) {
@@ -1002,14 +1146,14 @@ namespace TerrainDecal
         if (outputVertices.empty()) {
             if (!loadedAnyTerrainCells) {
                 if (ShouldLogOverlayOnce(overlayId, "no-terrain-cells")) {
-                    LOG_WARN("TerrainDecalRenderer: overlay {} fell through because no terrain cells loaded", overlayId);
+                    LOG_TRACE("TerrainDecalRenderer: overlay {} fell through because no terrain cells loaded", overlayId);
                 }
                 return DrawResult::FallThroughToVanilla;
             }
 
             if (!hasUvOverride && !hasModifiers) {
                 if (ShouldLogOverlayOnce(overlayId, "clip-empty")) {
-                    LOG_WARN("TerrainDecalRenderer: overlay {} fell through because clipping produced no output vertices",
+                    LOG_TRACE("TerrainDecalRenderer: overlay {} fell through because clipping produced no output vertices",
                              overlayId);
                     LogClipDebugSample(overlayId, clipDebugSample, clipBounds, effectiveClipU, effectiveClipV);
                 }
