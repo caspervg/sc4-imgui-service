@@ -31,6 +31,7 @@ public:
     [[nodiscard]] bool GetEnableDrawService() const noexcept;
     [[nodiscard]] bool GetEnableTerrainDecalService() const noexcept;
     [[nodiscard]] bool GetEnableTerrainDecalExperimentalRenderer() const noexcept;
+    [[nodiscard]] int GetTerrainDecalDefaultDepthOffset() const noexcept;
 
 private:
     spdlog::level::level_enum logLevel_;
@@ -47,4 +48,5 @@ private:
     bool enableDrawService_;
     bool enableTerrainDecalService_;
     bool enableTerrainDecalExperimentalRenderer_;
+    int terrainDecalDefaultDepthOffset_;
 };

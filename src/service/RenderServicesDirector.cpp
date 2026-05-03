@@ -177,6 +177,7 @@ public:
 
         if (settings.GetEnableTerrainDecalService()) {
             terrainDecalService_.SetEnableExperimentalRenderer(settings.GetEnableTerrainDecalExperimentalRenderer());
+            terrainDecalService_.SetDefaultDepthOffset(settings.GetTerrainDecalDefaultDepthOffset());
             if (terrainDecalService_.Init()) {
                 mpFrameWork->AddSystemService(&terrainDecalService_);
                 mpFrameWork->AddToTick(&terrainDecalService_);

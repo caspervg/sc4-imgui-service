@@ -36,6 +36,9 @@ struct TerrainDecalState {
     uint32_t flags = 0;
     bool hasUvWindow = false;
     TerrainDecalUvWindow uvWindow{};
+    // -1 falls back to the service-level default (INI: TerrainDecalDefaultDepthOffset).
+    // Vanilla SC4 decals use 2; shadows use 3. Set to 4+ to render above shadows.
+    int depthOffset = -1;
 };
 
 struct TerrainDecalSnapshot {
@@ -54,6 +57,6 @@ public:
     virtual bool GetDecal(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot) const = 0;
     virtual bool ReplaceDecal(TerrainDecalId id, const TerrainDecalState& newState) = 0;
 
-    virtual uint32_t GetDecalCount() const = 0;
+    [[nodiscard]] virtual uint32_t GetDecalCount() const = 0;
     virtual uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity) const = 0;
 };

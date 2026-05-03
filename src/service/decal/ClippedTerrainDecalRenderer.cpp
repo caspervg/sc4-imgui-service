@@ -281,9 +281,7 @@ namespace
     using SetDepthOffsetFn = void(__thiscall*)(SC4DrawContext*, int);
 
     // Vanilla DrawDecals uses depth offset 2; DrawShadows uses 3 (higher = closer to camera in SC4).
-    // Setting our decals to 4 ensures shadow DrawRect calls lose the depth test against our pixels.
-    // Set to 2 to match vanilla (shadows will render on top); set higher to render above shadows.
-    constexpr int kCustomDecalDepthOffset = 4;
+    // Set decals to 4+ to ensure they win the depth test against shadow pixels.
     constexpr int kVanillaDecalDepthOffset = 2;
 
     [[nodiscard]] OverlaySlotView ReadOverlaySlotView(const std::byte* slotBase)
@@ -1178,9 +1176,13 @@ namespace TerrainDecal
             setTexTransform(request.drawContext, texTransformOverride.adjusted.data(), request.activeTexTransformStage);
         }
 
+        const int effectiveDepthOffset = overrides.depthOffset >= 0
+                                             ? overrides.depthOffset
+                                             : options_.defaultDepthOffset;
+
         if (request.addresses->setDepthOffset) {
             const auto setDepthOffset = reinterpret_cast<SetDepthOffsetFn>(request.addresses->setDepthOffset);
-            setDepthOffset(request.drawContext, kCustomDecalDepthOffset);
+            setDepthOffset(request.drawContext, effectiveDepthOffset);
         }
 
         const auto drawPrims = reinterpret_cast<DrawPrimsFn>(request.addresses->drawPrims);
