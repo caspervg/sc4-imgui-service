@@ -6,7 +6,6 @@
 #include <atomic>
 #include <ddraw.h>
 #include <ranges>
-#include <timeapi.h>
 #include <winerror.h>
 
 #include "cIGZFrameWorkW32.h"
@@ -18,8 +17,8 @@
 #include "imgui_impl_dx7.h"
 #include "imgui_impl_win32.h"
 #include "public/ImGuiServiceIds.h"
-#include "utils/VersionDetection.h"
 #include "utils/Logger.h"
+#include "utils/VersionDetection.h"
 
 namespace {
     std::atomic<ImGuiService*> g_instance{nullptr};
@@ -185,7 +184,6 @@ bool ImGuiService::Init() {
     }
 
     Logger::Initialize("ImGuiService", "");
-    timeBeginPeriod(1);
     LOG_INFO("ImGuiService: initialized");
     SetServiceRunning(true);
     initialized_ = true;
@@ -199,7 +197,6 @@ bool ImGuiService::Shutdown() {
     }
 
     initialized_ = false;
-    timeEndPeriod(1);
 
     std::vector<ImGuiPanelDesc> panelsToShutdown;
     {
