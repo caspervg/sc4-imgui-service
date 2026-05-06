@@ -17,7 +17,7 @@ class cISC4DBSegment;
 class cISC4City;
 class cISTEOverlayManager;
 
-class TerrainDecalService final : public cRZBaseSystemService, public cIGZTerrainDecalService {
+class TerrainDecalService final : public cRZBaseSystemService, public cIGZTerrainDecalService2 {
 public:
     TerrainDecalService();
     ~TerrainDecalService() = default;
@@ -33,6 +33,12 @@ public:
     bool ReplaceDecal(TerrainDecalId id, const TerrainDecalState& newState) override;
     uint32_t GetDecalCount() const override;
     uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity) const override;
+    uint32_t GetStateSize() const override;
+    uint32_t GetSnapshotSize() const override;
+    bool CreateDecal2(const TerrainDecalState* initialState, uint32_t stateSize, TerrainDecalId* outId) override;
+    bool GetDecal2(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot, uint32_t snapshotSize) const override;
+    bool ReplaceDecal2(TerrainDecalId id, const TerrainDecalState* newState, uint32_t stateSize) override;
+    uint32_t CopyDecals2(TerrainDecalSnapshot* buffer, uint32_t capacity, uint32_t snapshotSize) const override;
     bool OnTick(uint32_t unknown1) override;
 
     void SetEnableExperimentalRenderer(bool enableExperimentalRenderer) noexcept;
