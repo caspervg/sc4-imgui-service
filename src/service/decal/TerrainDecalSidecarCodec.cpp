@@ -36,6 +36,7 @@ namespace {
                         ? TerrainDecalUvMode::ClipSubrect
                         : TerrainDecalUvMode::StretchSubrect,
         };
+        snapshot.state.depthOffset = persisted.depthOffset;
         return snapshot;
     }
 
@@ -72,6 +73,7 @@ namespace {
         persisted.u2 = snapshot.state.uvWindow.u2;
         persisted.v2 = snapshot.state.uvWindow.v2;
         persisted.uvMode = static_cast<uint32_t>(snapshot.state.uvWindow.mode);
+        persisted.depthOffset = snapshot.state.depthOffset;
         return persisted;
     }
 }
@@ -119,10 +121,7 @@ namespace TerrainDecalSidecar {
             return result;
         }
 
-        if (chunk.recordSize != sizeof(PersistedTerrainDecal)) {
-            result.error = "unexpected terrain decal record size";
-            return result;
-        }
+        const bool hasDepthOffsetField = chunk.recordSize >= sizeof(PersistedTerrainDecal);
 
         if (chunk.payloadBytes != chunk.recordCount * chunk.recordSize) {
             result.error = "terrain decal chunk payload size mismatch";
@@ -162,6 +161,17 @@ namespace TerrainDecalSidecar {
                 result.decals.clear();
                 return result;
             }
+
+            if (hasDepthOffsetField) {
+                uint32_t depthOffsetBits = 0;
+                if (!in.GetUint32(depthOffsetBits)) {
+                    result.error = "truncated terrain decal record";
+                    result.decals.clear();
+                    return result;
+                }
+                persisted.depthOffset = static_cast<int32_t>(depthOffsetBits);
+            }
+            // Older records have no depthOffset; PersistedTerrainDecal::depthOffset already defaults to -1.
 
             result.decals.push_back(DecodeSnapshot(persisted));
         }
@@ -221,7 +231,8 @@ namespace TerrainDecalSidecar {
                 !out.SetFloat32(persisted.v1) ||
                 !out.SetFloat32(persisted.u2) ||
                 !out.SetFloat32(persisted.v2) ||
-                !out.SetUint32(persisted.uvMode)) {
+                !out.SetUint32(persisted.uvMode) ||
+                !out.SetUint32(static_cast<uint32_t>(persisted.depthOffset))) {
                 return false;
             }
         }

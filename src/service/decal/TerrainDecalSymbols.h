@@ -13,8 +13,11 @@ namespace TerrainDecal
         uintptr_t drawDecals = 0;
         uintptr_t drawRect = 0;
         uintptr_t drawRectCallSite = 0;
+        uintptr_t drawShadowsCallSite = 0;
+        uintptr_t drawShadowsRoughCallSite = 0;
         uintptr_t setTexTransform4 = 0;
         uintptr_t setTexTransform4CallSite = 0;
+        uintptr_t setDepthOffset = 0;
         uintptr_t setVertexBuffer = 0;
         uintptr_t drawPrims = 0;
         uintptr_t drawPrimsIndexed = 0;
@@ -23,10 +26,12 @@ namespace TerrainDecal
         uintptr_t drawTerrainMeshSubsetWithVertBufExtensionInDrawFrustum = 0;
         uintptr_t terrainGridVerticesPtr = 0;
         uintptr_t terrainCellInfoRowsPtr = 0;
-        uintptr_t terrainPreparedCellVerticesRowsPtr = 0;
+        uintptr_t levelCellQuadsPtr = 0;
+        uintptr_t allLevelCellIndicesPtr = 0;
         uintptr_t terrainCellCountXPtr = 0;
         uintptr_t terrainCellCountZPtr = 0;
         uintptr_t terrainVertexCountXPtr = 0;
+        uintptr_t terrainVertexCountZPtr = 0;
         uintptr_t terrainVertexCountPtr = 0;
         std::ptrdiff_t overlayRectOffset = 0;
         std::ptrdiff_t overlaySlotsPtrOffset = 0;

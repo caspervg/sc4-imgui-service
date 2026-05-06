@@ -1,10 +1,12 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "ClippedTerrainDecalRenderer.h"
 #include "RelativeCallPatch.h"
@@ -21,6 +23,8 @@ namespace TerrainDecal
         {
             bool installEnabled = true;
             bool enableExperimentalRenderer = true;
+            // Default decal depth offset, used when a state has depthOffset == -1.
+            int defaultDepthOffset = 4;
         };
 
         explicit TerrainDecalHook(Options options = {});
@@ -41,6 +45,7 @@ namespace TerrainDecal
     private:
         using DrawRectFn = void(__thiscall*)(void*, SC4DrawContext*, const cRZRect*);
         using SetTexTransform4Fn = void(__thiscall*)(SC4DrawContext*, const float*, int);
+
         static void __fastcall DrawRectCallThunk(void* overlayManager, void*, SC4DrawContext* drawContext, const cRZRect* rect);
         static void __fastcall SetTexTransform4CallThunk(SC4DrawContext* drawContext, void*, const float* matrix, int stage);
 

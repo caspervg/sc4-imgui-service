@@ -195,7 +195,7 @@ target_compile_definitions(SC4RenderServices PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(SC4RenderServices PRIVATE kernel32 user32 Version ddraw dxguid)
+    target_link_libraries(SC4RenderServices PRIVATE kernel32 user32 Version ddraw dxguid winmm)
 endif()
 
 set_target_properties(SC4RenderServices PROPERTIES

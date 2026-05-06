@@ -17,8 +17,8 @@
 #include "imgui_impl_dx7.h"
 #include "imgui_impl_win32.h"
 #include "public/ImGuiServiceIds.h"
-#include "utils/VersionDetection.h"
 #include "utils/Logger.h"
+#include "utils/VersionDetection.h"
 
 namespace {
     std::atomic<ImGuiService*> g_instance{nullptr};
