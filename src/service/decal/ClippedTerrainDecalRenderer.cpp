@@ -1178,7 +1178,7 @@ namespace TerrainDecal
 
         const int effectiveDepthOffset = overrides.depthOffset >= 0
                                              ? overrides.depthOffset
-                                             : options_.defaultDepthOffset;
+                                             : options_.customDefaultDepthOffset;
 
         if (request.addresses->setDepthOffset) {
             const auto setDepthOffset = reinterpret_cast<SetDepthOffsetFn>(request.addresses->setDepthOffset);

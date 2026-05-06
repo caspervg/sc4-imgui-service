@@ -30,8 +30,8 @@ public:
     [[nodiscard]] bool GetEnableS3DCameraService() const noexcept;
     [[nodiscard]] bool GetEnableDrawService() const noexcept;
     [[nodiscard]] bool GetEnableTerrainDecalService() const noexcept;
-    [[nodiscard]] bool GetEnableTerrainDecalExperimentalRenderer() const noexcept;
-    [[nodiscard]] int GetTerrainDecalDefaultDepthOffset() const noexcept;
+    [[nodiscard]] bool GetEnableCustomTerrainDecalRenderer() const noexcept;
+    [[nodiscard]] int GetTerrainDecalCustomDefaultDepthOffset() const noexcept;
 
 private:
     spdlog::level::level_enum logLevel_;
@@ -47,6 +47,6 @@ private:
     bool enableS3DCameraService_;
     bool enableDrawService_;
     bool enableTerrainDecalService_;
-    bool enableTerrainDecalExperimentalRenderer_;
-    int terrainDecalDefaultDepthOffset_;
+    bool enableCustomTerrainDecalRenderer_;
+    int terrainDecalCustomDefaultDepthOffset_;
 };

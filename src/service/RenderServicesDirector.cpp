@@ -107,12 +107,12 @@ public:
                  settings.GetTheme(),
                  settings.GetUIScale(),
                  settings.GetKeyboardNav());
-        LOG_INFO("RenderServicesDirector: services enabled (ImGui={}, S3DCamera={}, Draw={}, TerrainDecal={}, TerrainDecalExperimentalRenderer={})",
+        LOG_INFO("RenderServicesDirector: services enabled (ImGui={}, S3DCamera={}, Draw={}, TerrainDecal={}, CustomTerrainDecalRenderer={})",
                  settings.GetEnableImGuiService(),
                  settings.GetEnableS3DCameraService(),
                  settings.GetEnableDrawService(),
                  settings.GetEnableTerrainDecalService(),
-                 settings.GetEnableTerrainDecalExperimentalRenderer());
+                 settings.GetEnableCustomTerrainDecalRenderer());
 
         if (!mpFrameWork) {
             LOG_WARN("RenderServicesDirector: framework not available");
@@ -176,8 +176,8 @@ public:
         }
 
         if (settings.GetEnableTerrainDecalService()) {
-            terrainDecalService_.SetEnableExperimentalRenderer(settings.GetEnableTerrainDecalExperimentalRenderer());
-            terrainDecalService_.SetDefaultDepthOffset(settings.GetTerrainDecalDefaultDepthOffset());
+            terrainDecalService_.SetEnableCustomRenderer(settings.GetEnableCustomTerrainDecalRenderer());
+            terrainDecalService_.SetCustomDefaultDepthOffset(settings.GetTerrainDecalCustomDefaultDepthOffset());
             if (terrainDecalService_.Init()) {
                 mpFrameWork->AddSystemService(&terrainDecalService_);
                 mpFrameWork->AddToTick(&terrainDecalService_);

@@ -35,8 +35,8 @@ namespace TerrainDecal
     TerrainDecalHook::TerrainDecalHook(const Options options)
         : options_(options)
         , renderer_(RendererOptions{
-              .enableClippedRendering = options.enableExperimentalRenderer,
-              .defaultDepthOffset = options.defaultDepthOffset,
+              .enableClippedRendering = options.enableCustomRenderer,
+              .customDefaultDepthOffset = options.customDefaultDepthOffset,
           })
     {
     }

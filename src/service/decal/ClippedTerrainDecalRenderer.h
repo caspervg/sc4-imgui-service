@@ -25,7 +25,7 @@ namespace TerrainDecal
         bool enableClippedRendering = false;
         // Used when an overlay's overrides specify depthOffset == -1.
         // Vanilla decals = 2, shadows = 3, above-shadows = 4.
-        int defaultDepthOffset = 4;
+        int customDefaultDepthOffset = 4;
     };
 
     struct DrawRequest
@@ -50,7 +50,7 @@ namespace TerrainDecal
         float uvScaleU = 1.0f;
         float uvScaleV = 1.0f;
         float uvOffset = 0.0f;
-        // -1 means "use RendererOptions::defaultDepthOffset".
+        // -1 means "use RendererOptions::customDefaultDepthOffset".
         int depthOffset = -1;
     };
 

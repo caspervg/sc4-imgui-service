@@ -10,7 +10,8 @@ fail.
 
 Relevant ini settings:
 - `EnableTerrainDecalService=true`
-- `EnableTerrainDecalExperimentalRenderer=true`
+- `EnableCustomTerrainDecalRenderer=true`
+- `TerrainDecalCustomDefaultDepthOffset=4` (vanilla decals use `2`; shadows use `3`)
 
 ## What It Adds
 

@@ -37,7 +37,7 @@ struct TerrainDecalState {
     uint32_t flags = 0;
     bool hasUvWindow = false;
     TerrainDecalUvWindow uvWindow{};
-    // -1 falls back to the service-level default (INI: TerrainDecalDefaultDepthOffset).
+    // -1 falls back to the service-level default (INI: TerrainDecalCustomDefaultDepthOffset).
     // Vanilla SC4 decals use 2; shadows use 3. Set to 4+ to render above shadows.
     int depthOffset = -1;
 };

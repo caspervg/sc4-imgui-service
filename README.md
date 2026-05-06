@@ -72,9 +72,13 @@ EnableS3DCameraService=true
 EnableDrawService=true
 EnableTerrainDecalService=true
 
-; Enables the custom terrain decal renderer path used for UV subrect support
-; and clipped decal rendering.
-EnableTerrainDecalExperimentalRenderer=true
+; Enables the custom terrain decal renderer path used to improve vanilla
+; terrain decal rendering with UV subrect support, clipping, and depth offsets.
+EnableCustomTerrainDecalRenderer=true
+
+; Default depth offset applied to custom-rendered terrain decals.
+; Vanilla terrain decals use 2. Shadows use 3. Valid range: 0 - 64.
+TerrainDecalCustomDefaultDepthOffset=4
 ```
 
 ## Outputs

@@ -28,10 +28,10 @@ namespace {
     constexpr bool kDefaultEnableS3DCameraService = true;
     constexpr bool kDefaultEnableDrawService = true;
     constexpr bool kDefaultEnableTerrainDecalService = true;
-    constexpr bool kDefaultEnableTerrainDecalExperimentalRenderer = true;
-    constexpr int kDefaultTerrainDecalDefaultDepthOffset = 4;
-    constexpr int kMinTerrainDecalDefaultDepthOffset = 0;
-    constexpr int kMaxTerrainDecalDefaultDepthOffset = 64;
+    constexpr bool kDefaultEnableCustomTerrainDecalRenderer = true;
+    constexpr int kDefaultTerrainDecalCustomDefaultDepthOffset = 4;
+    constexpr int kMinTerrainDecalCustomDefaultDepthOffset = 0;
+    constexpr int kMaxTerrainDecalCustomDefaultDepthOffset = 64;
 
     const std::string kDefaultTheme = "dark";
     const std::string kSectionName = "SC4RenderServices";
@@ -119,8 +119,8 @@ Settings::Settings()
     , enableS3DCameraService_(kDefaultEnableS3DCameraService)
     , enableDrawService_(kDefaultEnableDrawService)
     , enableTerrainDecalService_(kDefaultEnableTerrainDecalService)
-    , enableTerrainDecalExperimentalRenderer_(kDefaultEnableTerrainDecalExperimentalRenderer)
-    , terrainDecalDefaultDepthOffset_(kDefaultTerrainDecalDefaultDepthOffset) {}
+    , enableCustomTerrainDecalRenderer_(kDefaultEnableCustomTerrainDecalRenderer)
+    , terrainDecalCustomDefaultDepthOffset_(kDefaultTerrainDecalCustomDefaultDepthOffset) {}
 
 void Settings::Load(const std::filesystem::path& settingsFilePath) {
     // Reset to defaults
@@ -298,34 +298,34 @@ void Settings::Load(const std::filesystem::path& settingsFilePath) {
             }
         }
 
-        // EnableTerrainDecalExperimentalRenderer
-        if (section.has("EnableTerrainDecalExperimentalRenderer")) {
+        // EnableCustomTerrainDecalRenderer
+        if (section.has("EnableCustomTerrainDecalRenderer")) {
             bool valid = false;
-            const std::string text = section.get("EnableTerrainDecalExperimentalRenderer");
-            enableTerrainDecalExperimentalRenderer_ = ParseBool(text, valid);
+            const std::string text = section.get("EnableCustomTerrainDecalRenderer");
+            enableCustomTerrainDecalRenderer_ = ParseBool(text, valid);
             if (!valid) {
-                enableTerrainDecalExperimentalRenderer_ = kDefaultEnableTerrainDecalExperimentalRenderer;
-                LOG_ERROR("Invalid EnableTerrainDecalExperimentalRenderer value '{}' in {}. Using default true.", text, settingsFilePath.string());
+                enableCustomTerrainDecalRenderer_ = kDefaultEnableCustomTerrainDecalRenderer;
+                LOG_ERROR("Invalid EnableCustomTerrainDecalRenderer value '{}' in {}. Using default true.", text, settingsFilePath.string());
             }
         }
 
-        // TerrainDecalDefaultDepthOffset
-        if (section.has("TerrainDecalDefaultDepthOffset")) {
+        // TerrainDecalCustomDefaultDepthOffset
+        if (section.has("TerrainDecalCustomDefaultDepthOffset")) {
             bool valid = false;
-            const std::string text = section.get("TerrainDecalDefaultDepthOffset");
+            const std::string text = section.get("TerrainDecalCustomDefaultDepthOffset");
             const int parsed = ParseInt(text, valid);
             if (!valid) {
-                LOG_ERROR("Invalid TerrainDecalDefaultDepthOffset value '{}' in {}. Using default {}.",
-                         text, settingsFilePath.string(), kDefaultTerrainDecalDefaultDepthOffset);
+                LOG_ERROR("Invalid TerrainDecalCustomDefaultDepthOffset value '{}' in {}. Using default {}.",
+                         text, settingsFilePath.string(), kDefaultTerrainDecalCustomDefaultDepthOffset);
             } else {
-                terrainDecalDefaultDepthOffset_ =
-                    std::clamp(parsed, kMinTerrainDecalDefaultDepthOffset, kMaxTerrainDecalDefaultDepthOffset);
-                if (terrainDecalDefaultDepthOffset_ != parsed) {
-                    LOG_WARN("TerrainDecalDefaultDepthOffset value {} out of range [{}, {}], clamped to {}.",
+                terrainDecalCustomDefaultDepthOffset_ =
+                    std::clamp(parsed, kMinTerrainDecalCustomDefaultDepthOffset, kMaxTerrainDecalCustomDefaultDepthOffset);
+                if (terrainDecalCustomDefaultDepthOffset_ != parsed) {
+                    LOG_WARN("TerrainDecalCustomDefaultDepthOffset value {} out of range [{}, {}], clamped to {}.",
                              parsed,
-                             kMinTerrainDecalDefaultDepthOffset,
-                             kMaxTerrainDecalDefaultDepthOffset,
-                             terrainDecalDefaultDepthOffset_);
+                             kMinTerrainDecalCustomDefaultDepthOffset,
+                             kMaxTerrainDecalCustomDefaultDepthOffset,
+                             terrainDecalCustomDefaultDepthOffset_);
                 }
             }
         }
@@ -349,5 +349,5 @@ bool Settings::GetEnableImGuiService() const noexcept { return enableImGuiServic
 bool Settings::GetEnableS3DCameraService() const noexcept { return enableS3DCameraService_; }
 bool Settings::GetEnableDrawService() const noexcept { return enableDrawService_; }
 bool Settings::GetEnableTerrainDecalService() const noexcept { return enableTerrainDecalService_; }
-bool Settings::GetEnableTerrainDecalExperimentalRenderer() const noexcept { return enableTerrainDecalExperimentalRenderer_; }
-int Settings::GetTerrainDecalDefaultDepthOffset() const noexcept { return terrainDecalDefaultDepthOffset_; }
+bool Settings::GetEnableCustomTerrainDecalRenderer() const noexcept { return enableCustomTerrainDecalRenderer_; }
+int Settings::GetTerrainDecalCustomDefaultDepthOffset() const noexcept { return terrainDecalCustomDefaultDepthOffset_; }

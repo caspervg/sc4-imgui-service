@@ -22,9 +22,9 @@ namespace TerrainDecal
         struct Options
         {
             bool installEnabled = true;
-            bool enableExperimentalRenderer = true;
-            // Default decal depth offset, used when a state has depthOffset == -1.
-            int defaultDepthOffset = 4;
+            bool enableCustomRenderer = true;
+            // Default custom-rendered decal depth offset, used when a state has depthOffset == -1.
+            int customDefaultDepthOffset = 4;
         };
 
         explicit TerrainDecalHook(Options options = {});

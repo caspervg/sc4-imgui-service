@@ -41,8 +41,8 @@ public:
     uint32_t CopyDecals2(TerrainDecalSnapshot* buffer, uint32_t capacity, uint32_t snapshotSize) const override;
     bool OnTick(uint32_t unknown1) override;
 
-    void SetEnableExperimentalRenderer(bool enableExperimentalRenderer) noexcept;
-    void SetDefaultDepthOffset(int defaultDepthOffset) noexcept;
+    void SetEnableCustomRenderer(bool enableCustomRenderer) noexcept;
+    void SetCustomDefaultDepthOffset(int customDefaultDepthOffset) noexcept;
     bool Init() override;
     bool Shutdown();
     bool HandleMessage(cIGZMessage2* message);
@@ -74,7 +74,7 @@ private:
     TerrainDecalRegistry registry_{};
     std::unique_ptr<TerrainDecal::TerrainDecalHook> renderHook_{};
     std::vector<TerrainDecalSnapshot> pendingLoadedDecals_{};
-    bool enableExperimentalRenderer_ = true;
-    int defaultDepthOffset_ = 4;
+    bool enableCustomRenderer_ = true;
+    int customDefaultDepthOffset_ = 4;
     bool cityLoaded_ = false;
 };

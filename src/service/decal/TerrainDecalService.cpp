@@ -250,14 +250,14 @@ bool TerrainDecalService::OnTick(const uint32_t unknown1)
     return true;
 }
 
-void TerrainDecalService::SetEnableExperimentalRenderer(const bool enableExperimentalRenderer) noexcept
+void TerrainDecalService::SetEnableCustomRenderer(const bool enableCustomRenderer) noexcept
 {
-    enableExperimentalRenderer_ = enableExperimentalRenderer;
+    enableCustomRenderer_ = enableCustomRenderer;
 }
 
-void TerrainDecalService::SetDefaultDepthOffset(const int defaultDepthOffset) noexcept
+void TerrainDecalService::SetCustomDefaultDepthOffset(const int customDefaultDepthOffset) noexcept
 {
-    defaultDepthOffset_ = defaultDepthOffset;
+    customDefaultDepthOffset_ = customDefaultDepthOffset;
 }
 
 bool TerrainDecalService::Init()
@@ -269,8 +269,8 @@ bool TerrainDecalService::Init()
 
     renderHook_ = std::make_unique<TerrainDecal::TerrainDecalHook>(TerrainDecal::TerrainDecalHook::Options{
         .installEnabled = true,
-        .enableExperimentalRenderer = enableExperimentalRenderer_,
-        .defaultDepthOffset = defaultDepthOffset_,
+        .enableCustomRenderer = enableCustomRenderer_,
+        .customDefaultDepthOffset = customDefaultDepthOffset_,
     });
 
     if (!renderHook_->Install()) {
