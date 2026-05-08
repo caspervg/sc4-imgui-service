@@ -29,9 +29,12 @@ namespace {
     constexpr bool kDefaultEnableDrawService = true;
     constexpr bool kDefaultEnableTerrainDecalService = true;
     constexpr bool kDefaultEnableCustomTerrainDecalRenderer = true;
-    constexpr int kDefaultTerrainDecalCustomDefaultDepthOffset = 4;
+    constexpr int kDefaultTerrainDecalCustomDefaultDepthOffset = 2;
     constexpr int kMinTerrainDecalCustomDefaultDepthOffset = 0;
     constexpr int kMaxTerrainDecalCustomDefaultDepthOffset = 64;
+    constexpr float kDefaultTerrainDecalShadowRecoveryOpacityScale = 0.25f;
+    constexpr float kMinTerrainDecalShadowRecoveryOpacityScale = 0.0f;
+    constexpr float kMaxTerrainDecalShadowRecoveryOpacityScale = 1.0f;
 
     const std::string kDefaultTheme = "dark";
     const std::string kSectionName = "SC4RenderServices";
@@ -120,7 +123,8 @@ Settings::Settings()
     , enableDrawService_(kDefaultEnableDrawService)
     , enableTerrainDecalService_(kDefaultEnableTerrainDecalService)
     , enableCustomTerrainDecalRenderer_(kDefaultEnableCustomTerrainDecalRenderer)
-    , terrainDecalCustomDefaultDepthOffset_(kDefaultTerrainDecalCustomDefaultDepthOffset) {}
+    , terrainDecalCustomDefaultDepthOffset_(kDefaultTerrainDecalCustomDefaultDepthOffset)
+    , terrainDecalShadowRecoveryOpacityScale_(kDefaultTerrainDecalShadowRecoveryOpacityScale) {}
 
 void Settings::Load(const std::filesystem::path& settingsFilePath) {
     // Reset to defaults
@@ -329,6 +333,27 @@ void Settings::Load(const std::filesystem::path& settingsFilePath) {
                 }
             }
         }
+
+        // TerrainDecalShadowRecoveryOpacityScale
+        if (section.has("TerrainDecalShadowRecoveryOpacityScale")) {
+            bool valid = false;
+            const std::string text = section.get("TerrainDecalShadowRecoveryOpacityScale");
+            const float parsed = ParseFloat(text, valid);
+            if (!valid) {
+                LOG_ERROR("Invalid TerrainDecalShadowRecoveryOpacityScale value '{}' in {}. Using default {}.",
+                         text, settingsFilePath.string(), kDefaultTerrainDecalShadowRecoveryOpacityScale);
+            } else {
+                terrainDecalShadowRecoveryOpacityScale_ =
+                    std::clamp(parsed, kMinTerrainDecalShadowRecoveryOpacityScale, kMaxTerrainDecalShadowRecoveryOpacityScale);
+                if (terrainDecalShadowRecoveryOpacityScale_ != parsed) {
+                    LOG_WARN("TerrainDecalShadowRecoveryOpacityScale value {} out of range [{}, {}], clamped to {}.",
+                             parsed,
+                             kMinTerrainDecalShadowRecoveryOpacityScale,
+                             kMaxTerrainDecalShadowRecoveryOpacityScale,
+                             terrainDecalShadowRecoveryOpacityScale_);
+                }
+            }
+        }
     }
     catch (const std::exception& e) {
         LOG_ERROR("Error reading settings file {}: {}", settingsFilePath.string(), e.what());
@@ -351,3 +376,4 @@ bool Settings::GetEnableDrawService() const noexcept { return enableDrawService_
 bool Settings::GetEnableTerrainDecalService() const noexcept { return enableTerrainDecalService_; }
 bool Settings::GetEnableCustomTerrainDecalRenderer() const noexcept { return enableCustomTerrainDecalRenderer_; }
 int Settings::GetTerrainDecalCustomDefaultDepthOffset() const noexcept { return terrainDecalCustomDefaultDepthOffset_; }
+float Settings::GetTerrainDecalShadowRecoveryOpacityScale() const noexcept { return terrainDecalShadowRecoveryOpacityScale_; }

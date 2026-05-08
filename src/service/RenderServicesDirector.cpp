@@ -113,6 +113,9 @@ public:
                  settings.GetEnableDrawService(),
                  settings.GetEnableTerrainDecalService(),
                  settings.GetEnableCustomTerrainDecalRenderer());
+        LOG_INFO("RenderServicesDirector: terrain decal renderer settings (DefaultDepthOffset={}, ShadowRecoveryOpacityScale={})",
+                 settings.GetTerrainDecalCustomDefaultDepthOffset(),
+                 settings.GetTerrainDecalShadowRecoveryOpacityScale());
 
         if (!mpFrameWork) {
             LOG_WARN("RenderServicesDirector: framework not available");
@@ -178,6 +181,7 @@ public:
         if (settings.GetEnableTerrainDecalService()) {
             terrainDecalService_.SetEnableCustomRenderer(settings.GetEnableCustomTerrainDecalRenderer());
             terrainDecalService_.SetCustomDefaultDepthOffset(settings.GetTerrainDecalCustomDefaultDepthOffset());
+            terrainDecalService_.SetShadowRecoveryOpacityScale(settings.GetTerrainDecalShadowRecoveryOpacityScale());
             if (terrainDecalService_.Init()) {
                 mpFrameWork->AddSystemService(&terrainDecalService_);
                 mpFrameWork->AddToTick(&terrainDecalService_);

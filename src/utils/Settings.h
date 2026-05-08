@@ -32,6 +32,7 @@ public:
     [[nodiscard]] bool GetEnableTerrainDecalService() const noexcept;
     [[nodiscard]] bool GetEnableCustomTerrainDecalRenderer() const noexcept;
     [[nodiscard]] int GetTerrainDecalCustomDefaultDepthOffset() const noexcept;
+    [[nodiscard]] float GetTerrainDecalShadowRecoveryOpacityScale() const noexcept;
 
 private:
     spdlog::level::level_enum logLevel_;
@@ -49,4 +50,5 @@ private:
     bool enableTerrainDecalService_;
     bool enableCustomTerrainDecalRenderer_;
     int terrainDecalCustomDefaultDepthOffset_;
+    float terrainDecalShadowRecoveryOpacityScale_;
 };

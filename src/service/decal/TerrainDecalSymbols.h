@@ -17,6 +17,7 @@ namespace TerrainDecal
         uintptr_t drawShadowsRoughCallSite = 0;
         uintptr_t setTexTransform4 = 0;
         uintptr_t setTexTransform4CallSite = 0;
+        uintptr_t setTransparency = 0;
         uintptr_t setDepthOffset = 0;
         uintptr_t setVertexBuffer = 0;
         uintptr_t drawPrims = 0;

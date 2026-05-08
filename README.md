@@ -78,7 +78,11 @@ EnableCustomTerrainDecalRenderer=true
 
 ; Default depth offset applied to custom-rendered terrain decals.
 ; Vanilla terrain decals use 2. Shadows use 3. Valid range: 0 - 64.
-TerrainDecalCustomDefaultDepthOffset=4
+TerrainDecalCustomDefaultDepthOffset=2
+
+; Opacity scale for the post-shadow terrain decal recovery redraw.
+; Lower values blend more softly with shadows. Valid range: 0.0 - 1.0.
+TerrainDecalShadowRecoveryOpacityScale=0.25
 ```
 
 ## Outputs

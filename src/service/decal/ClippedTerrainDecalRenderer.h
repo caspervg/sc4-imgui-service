@@ -20,12 +20,20 @@ namespace TerrainDecal
         Handled,
     };
 
+    enum class DrawMode
+    {
+        Normal,
+        ShadowRecovery,
+    };
+
     struct RendererOptions
     {
         bool enableClippedRendering = false;
         // Used when an overlay's overrides specify depthOffset == -1.
         // Vanilla decals = 2, shadows = 3, above-shadows = 4.
-        int customDefaultDepthOffset = 4;
+        int customDefaultDepthOffset = 2;
+        int shadowRecoveryDepthOffset = 4;
+        float shadowRecoveryOpacityScale = 0.25f;
     };
 
     struct DrawRequest
@@ -40,6 +48,7 @@ namespace TerrainDecal
         const HookAddresses* addresses = nullptr;
         cISTETerrain* terrain = nullptr;
         cISTETerrainView* terrainView = nullptr;
+        DrawMode mode = DrawMode::Normal;
     };
 
     struct TerrainDecalOverlayOverrides

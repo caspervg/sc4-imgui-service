@@ -11,7 +11,8 @@ fail.
 Relevant ini settings:
 - `EnableTerrainDecalService=true`
 - `EnableCustomTerrainDecalRenderer=true`
-- `TerrainDecalCustomDefaultDepthOffset=4` (vanilla decals use `2`; shadows use `3`)
+- `TerrainDecalCustomDefaultDepthOffset=2` (vanilla decals use `2`; shadows use `3`)
+- `TerrainDecalShadowRecoveryOpacityScale=0.25` (post-shadow recovery redraw opacity; lower blends more softly)
 
 ## What It Adds
 

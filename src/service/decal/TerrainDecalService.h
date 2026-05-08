@@ -43,6 +43,7 @@ public:
 
     void SetEnableCustomRenderer(bool enableCustomRenderer) noexcept;
     void SetCustomDefaultDepthOffset(int customDefaultDepthOffset) noexcept;
+    void SetShadowRecoveryOpacityScale(float shadowRecoveryOpacityScale) noexcept;
     bool Init() override;
     bool Shutdown();
     bool HandleMessage(cIGZMessage2* message);
@@ -75,6 +76,7 @@ private:
     std::unique_ptr<TerrainDecal::TerrainDecalHook> renderHook_{};
     std::vector<TerrainDecalSnapshot> pendingLoadedDecals_{};
     bool enableCustomRenderer_ = true;
-    int customDefaultDepthOffset_ = 4;
+    int customDefaultDepthOffset_ = 2;
+    float shadowRecoveryOpacityScale_ = 0.25f;
     bool cityLoaded_ = false;
 };

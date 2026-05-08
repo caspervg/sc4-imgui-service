@@ -24,7 +24,8 @@ namespace TerrainDecal
             bool installEnabled = true;
             bool enableCustomRenderer = true;
             // Default custom-rendered decal depth offset, used when a state has depthOffset == -1.
-            int customDefaultDepthOffset = 4;
+            int customDefaultDepthOffset = 2;
+            float shadowRecoveryOpacityScale = 0.25f;
         };
 
         explicit TerrainDecalHook(Options options = {});
@@ -44,27 +45,36 @@ namespace TerrainDecal
 
     private:
         using DrawRectFn = void(__thiscall*)(void*, SC4DrawContext*, const cRZRect*);
+        using DrawOverlayPassFn = void(__thiscall*)(void*, const float*, SC4DrawContext*, int*);
         using SetTexTransform4Fn = void(__thiscall*)(SC4DrawContext*, const float*, int);
 
         static void __fastcall DrawRectCallThunk(void* overlayManager, void*, SC4DrawContext* drawContext, const cRZRect* rect);
+        static void __fastcall DrawShadowsCallThunk(void* overlayManager, void*, const float* worldToScreenMatrix, SC4DrawContext* drawContext, int* decalIds);
+        static void __fastcall DrawShadowsRoughCallThunk(void* overlayManager, void*, const float* worldToScreenMatrix, SC4DrawContext* drawContext, int* decalIds);
         static void __fastcall SetTexTransform4CallThunk(SC4DrawContext* drawContext, void*, const float* matrix, int stage);
 
         void HandleDrawRectCall_(void* overlayManager, SC4DrawContext* drawContext, const cRZRect* rect);
+        void HandleDrawShadowsCall_(const RelativeCallPatch& patch, void* overlayManager, const float* worldToScreenMatrix, SC4DrawContext* drawContext, int* decalIds);
         void HandleSetTexTransform4Call_(SC4DrawContext* drawContext, const float* matrix, int stage);
         void CallOriginalDrawRect_(void* overlayManager, SC4DrawContext* drawContext, const cRZRect* rect) const;
+        void CallOriginalOverlayPass_(const RelativeCallPatch& patch, void* overlayManager, const float* worldToScreenMatrix, SC4DrawContext* drawContext, int* decalIds) const;
         void CallOriginalSetTexTransform4_(SC4DrawContext* drawContext, const float* matrix, int stage) const;
+        void ReplayManagedDecalsAfterShadows_(void* overlayManager, const float* worldToScreenMatrix, SC4DrawContext* drawContext, int* decalIds);
         void SetLastError_(std::string message);
 
     private:
         Options options_;
         std::optional<HookAddresses> addresses_;
         RelativeCallPatch callSitePatch_;
+        RelativeCallPatch drawShadowsCallSitePatch_;
+        RelativeCallPatch drawShadowsRoughCallSitePatch_;
         RelativeCallPatch setTexTransformCallSitePatch_;
         ClippedTerrainDecalRenderer renderer_;
         std::string lastError_{};
         std::array<float, 16> currentTexTransform_{};
         int currentTexTransformStage_ = -1;
         bool currentTexTransformValid_ = false;
+        bool shadowRecoveryActive_ = false;
 
         static TerrainDecalHook* sActiveHook_;
     };

@@ -260,6 +260,11 @@ void TerrainDecalService::SetCustomDefaultDepthOffset(const int customDefaultDep
     customDefaultDepthOffset_ = customDefaultDepthOffset;
 }
 
+void TerrainDecalService::SetShadowRecoveryOpacityScale(const float shadowRecoveryOpacityScale) noexcept
+{
+    shadowRecoveryOpacityScale_ = shadowRecoveryOpacityScale;
+}
+
 bool TerrainDecalService::Init()
 {
     if (versionTag_ != 641) {
@@ -271,6 +276,7 @@ bool TerrainDecalService::Init()
         .installEnabled = true,
         .enableCustomRenderer = enableCustomRenderer_,
         .customDefaultDepthOffset = customDefaultDepthOffset_,
+        .shadowRecoveryOpacityScale = shadowRecoveryOpacityScale_,
     });
 
     if (!renderHook_->Install()) {
