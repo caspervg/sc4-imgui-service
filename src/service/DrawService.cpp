@@ -229,10 +229,10 @@ void DrawService::SetModelTransform(const SC4DrawContextHandle handle, float* tr
     }
 }
 
-void DrawService::SetModelViewTransformChanged(const SC4DrawContextHandle handle, const int changed) {
+void DrawService::SetModelViewTransformChanged(const SC4DrawContextHandle handle) {
     auto* drawContext = Validate(handle);
     if (drawContext && thunks_.setModelViewTransformChanged) {
-        thunks_.setModelViewTransformChanged(drawContext, changed);
+        thunks_.setModelViewTransformChanged(drawContext);
     }
 }
 
@@ -518,7 +518,7 @@ void DrawService::SetFog(const SC4DrawContextHandle handle, const bool enableFog
     }
 }
 
-void DrawService::SetCamera(const SC4DrawContextHandle handle, const int camera) {
+void DrawService::SetCamera(const SC4DrawContextHandle handle, cS3DCamera* camera) {
     auto* drawContext = Validate(handle);
     if (drawContext && thunks_.setCamera) {
         thunks_.setCamera(drawContext, camera);
@@ -794,7 +794,7 @@ bool DrawService::Init() {
     thunks_.setRenderStateHighlightMaterial = reinterpret_cast<void (__thiscall*)(void*, const void*, const void*)>(0x007D5670);
     thunks_.setModelTransform = reinterpret_cast<void (__thiscall*)(void*, const void*)>(0x007D3400);
     thunks_.setModelTransformFloats = reinterpret_cast<void (__thiscall*)(void*, float*)>(0x007D4B80);
-    thunks_.setModelViewTransformChanged = reinterpret_cast<void (__thiscall*)(void*, int)>(0x007D2750);
+    thunks_.setModelViewTransformChanged = reinterpret_cast<void (__thiscall*)(void*)>(0x007D2750);
     thunks_.resetModelViewTransform = reinterpret_cast<void (__thiscall*)(void*)>(0x007D2D20);
     thunks_.getModelViewMatrix = reinterpret_cast<void (__thiscall*)(void*, void*)>(0x007D2730);
     thunks_.setModelShade = reinterpret_cast<void (__thiscall*)(void*, void*, const float*)>(0x007D31E0);
@@ -835,7 +835,7 @@ bool DrawService::Init() {
     thunks_.getLighting = reinterpret_cast<uint8_t (__thiscall*)(void*)>(0x007D2A10);
     thunks_.setLighting = reinterpret_cast<void (__thiscall*)(void*, bool)>(0x007D30D0);
     thunks_.setFog = reinterpret_cast<void (__thiscall*)(void*, bool, float*, float, float)>(0x007D32D0);
-    thunks_.setCamera = reinterpret_cast<void (__thiscall*)(void*, int)>(0x007D3D80);
+    thunks_.setCamera = reinterpret_cast<void (__thiscall*)(void*, cS3DCamera*)>(0x007D3D80);
     thunks_.initContext = reinterpret_cast<void (__thiscall*)(void*)>(0x007D6320);
     thunks_.shutdownContext = reinterpret_cast<void (__thiscall*)(void*)>(0x007D2720);
     thunks_.drawBoundingBox = reinterpret_cast<void (__thiscall*)(void*, float*, const void*)>(0x007D5030);

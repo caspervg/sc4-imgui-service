@@ -4,6 +4,8 @@
 
 #include "cIGZUnknown.h"
 
+class cS3DCamera;
+
 // Unique IDs for the Draw service and its interface.
 static constexpr auto kDrawServiceID = 0xD6A70C11;
 static constexpr auto GZIID_cIGZDrawService = 0xA43BF2E7;
@@ -72,7 +74,7 @@ public:
 
     virtual void SetModelTransform(SC4DrawContextHandle handle, const void* transform4x4) = 0;
     virtual void SetModelTransform(SC4DrawContextHandle handle, float* transform4x4) = 0;
-    virtual void SetModelViewTransformChanged(SC4DrawContextHandle handle, int changed) = 0;
+    virtual void SetModelViewTransformChanged(SC4DrawContextHandle handle) = 0;
     virtual void ResetModelViewTransform(SC4DrawContextHandle handle) = 0;
     virtual void GetModelViewMatrix(SC4DrawContextHandle handle, void* outMatrix4x4) = 0;
     virtual void SetModelShade(SC4DrawContextHandle handle, void* modelInstance, const float* rgba) = 0;
@@ -115,7 +117,7 @@ public:
     virtual bool GetLighting(SC4DrawContextHandle handle) = 0;
     virtual void SetLighting(SC4DrawContextHandle handle, bool enableLighting) = 0;
     virtual void SetFog(SC4DrawContextHandle handle, bool enableFog, float* fogColorRgb, float fogStart, float fogEnd) = 0;
-    virtual void SetCamera(SC4DrawContextHandle handle, int camera) = 0;
+    virtual void SetCamera(SC4DrawContextHandle handle, cS3DCamera* camera) = 0;
     virtual void InitContext(SC4DrawContextHandle handle) = 0;
     virtual void ShutdownContext(SC4DrawContextHandle handle) = 0;
 
