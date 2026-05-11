@@ -10,7 +10,9 @@ fail.
 
 Relevant ini settings:
 - `EnableTerrainDecalService=true`
-- `EnableTerrainDecalExperimentalRenderer=true`
+- `EnableCustomTerrainDecalRenderer=true`
+- `TerrainDecalCustomDefaultDepthOffset=2` (vanilla decals use `2`; shadows use `3`)
+- `TerrainDecalShadowRecoveryOpacityScale=0.25` (post-shadow recovery redraw opacity; lower blends more softly)
 
 ## What It Adds
 
@@ -50,6 +52,8 @@ Core types:
 - `TerrainDecalUvWindow`: optional UV sub-rectangle plus `TerrainDecalUvMode`.
 
 Interface methods:
+- `GetStateSize()`: returns the service's `TerrainDecalState` size.
+- `GetSnapshotSize()`: returns the service's `TerrainDecalSnapshot` size.
 - `CreateDecal(...)`: creates a decal in the active city and returns a new ID.
 - `RemoveDecal(...)`: removes the decal and its runtime overlay.
 - `GetDecal(...)`: fetches one snapshot by ID.
@@ -110,7 +114,7 @@ state.enabled = true;
 state.color = cS3DVector3(1.0f, 1.0f, 1.0f);
 
 TerrainDecalId id{};
-if (!terrainDecalService->CreateDecal(state, &id)) {
+if (!terrainDecalService->CreateDecal(&state, sizeof(state), &id)) {
     // no active city, invalid state, missing overlay manager, or version mismatch
 }
 ```
@@ -121,10 +125,10 @@ Use `ReplaceDecal(...)` to update an existing decal.
 
 ```cpp
 TerrainDecalSnapshot snapshot{};
-if (terrainDecalService->GetDecal(id, &snapshot)) {
+if (terrainDecalService->GetDecal(id, &snapshot, sizeof(snapshot))) {
     snapshot.state.opacity = 0.5f;
     snapshot.state.decalInfo.rotationTurns += 0.125f;
-    terrainDecalService->ReplaceDecal(id, snapshot.state);
+    terrainDecalService->ReplaceDecal(id, &snapshot.state, sizeof(snapshot.state));
 }
 ```
 
@@ -134,7 +138,10 @@ set.
 ```cpp
 const uint32_t count = terrainDecalService->GetDecalCount();
 std::vector<TerrainDecalSnapshot> decals(count);
-const uint32_t copied = terrainDecalService->CopyDecals(decals.data(), count);
+const uint32_t copied = terrainDecalService->CopyDecals(
+    decals.data(),
+    count,
+    sizeof(TerrainDecalSnapshot));
 decals.resize(copied);
 ```
 

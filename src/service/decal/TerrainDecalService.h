@@ -27,16 +27,19 @@ public:
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
 
     [[nodiscard]] uint32_t GetServiceID() const override;
-    bool CreateDecal(const TerrainDecalState& initialState, TerrainDecalId* outId) override;
+    uint32_t GetStateSize() const override;
+    uint32_t GetSnapshotSize() const override;
+    bool CreateDecal(const TerrainDecalState* initialState, uint32_t stateSize, TerrainDecalId* outId) override;
     bool RemoveDecal(TerrainDecalId id) override;
-    bool GetDecal(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot) const override;
-    bool ReplaceDecal(TerrainDecalId id, const TerrainDecalState& newState) override;
+    bool GetDecal(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot, uint32_t snapshotSize) const override;
+    bool ReplaceDecal(TerrainDecalId id, const TerrainDecalState* newState, uint32_t stateSize) override;
     uint32_t GetDecalCount() const override;
-    uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity) const override;
+    uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity, uint32_t snapshotSize) const override;
     bool OnTick(uint32_t unknown1) override;
 
-    void SetEnableExperimentalRenderer(bool enableExperimentalRenderer) noexcept;
-    void SetDefaultDepthOffset(int defaultDepthOffset) noexcept;
+    void SetEnableCustomRenderer(bool enableCustomRenderer) noexcept;
+    void SetCustomDefaultDepthOffset(int customDefaultDepthOffset) noexcept;
+    void SetShadowRecoveryOpacityScale(float shadowRecoveryOpacityScale) noexcept;
     bool Init() override;
     bool Shutdown();
     bool HandleMessage(cIGZMessage2* message);
@@ -68,7 +71,8 @@ private:
     TerrainDecalRegistry registry_{};
     std::unique_ptr<TerrainDecal::TerrainDecalHook> renderHook_{};
     std::vector<TerrainDecalSnapshot> pendingLoadedDecals_{};
-    bool enableExperimentalRenderer_ = true;
-    int defaultDepthOffset_ = 4;
+    bool enableCustomRenderer_ = true;
+    int customDefaultDepthOffset_ = 2;
+    float shadowRecoveryOpacityScale_ = 0.25f;
     bool cityLoaded_ = false;
 };

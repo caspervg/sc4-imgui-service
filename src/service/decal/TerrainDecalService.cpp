@@ -1,6 +1,8 @@
 #include "TerrainDecalService.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstring>
 #include "GZServPtrs.h"
 #include "cIGZMessage2.h"
 #include "cIGZMessage2Standard.h"
@@ -32,6 +34,30 @@ namespace
     [[nodiscard]] bool IsValidOverlayId(const uint32_t overlayId) noexcept
     {
         return overlayId != kInvalidOverlayId;
+    }
+
+    [[nodiscard]] TerrainDecalState CopyStateFromCaller(const TerrainDecalState* const source,
+                                                        const uint32_t sourceSize) noexcept
+    {
+        TerrainDecalState state{};
+        if (source && sourceSize > 0) {
+            const size_t bytesToCopy = std::min<size_t>(sourceSize, sizeof(TerrainDecalState));
+            std::memcpy(&state, source, bytesToCopy);
+        }
+        return state;
+    }
+
+    bool CopySnapshotToCaller(const TerrainDecalSnapshot& snapshot,
+                              TerrainDecalSnapshot* const destination,
+                              const uint32_t destinationSize) noexcept
+    {
+        if (!destination || destinationSize < kTerrainDecalSnapshotSize) {
+            return false;
+        }
+
+        const size_t bytesToCopy = std::min<size_t>(destinationSize, sizeof(TerrainDecalSnapshot));
+        std::memcpy(destination, &snapshot, bytesToCopy);
+        return true;
     }
 }
 
@@ -71,13 +97,25 @@ uint32_t TerrainDecalService::GetServiceID() const
     return kTerrainDecalServiceID;
 }
 
-bool TerrainDecalService::CreateDecal(const TerrainDecalState& initialState, TerrainDecalId* outId)
+uint32_t TerrainDecalService::GetStateSize() const
 {
-    if (!outId) {
+    return static_cast<uint32_t>(sizeof(TerrainDecalState));
+}
+
+uint32_t TerrainDecalService::GetSnapshotSize() const
+{
+    return static_cast<uint32_t>(sizeof(TerrainDecalSnapshot));
+}
+
+bool TerrainDecalService::CreateDecal(const TerrainDecalState* const initialState,
+                                      const uint32_t stateSize,
+                                      TerrainDecalId* const outId)
+{
+    if (!initialState || !outId || stateSize < kTerrainDecalStateSize) {
         return false;
     }
 
-    TerrainDecalState state = initialState;
+    TerrainDecalState state = CopyStateFromCaller(initialState, stateSize);
     std::string error;
     if (!ValidateState_(state, error)) {
         LOG_WARN("TerrainDecalService: CreateDecal validation failed: {}", error);
@@ -102,9 +140,11 @@ bool TerrainDecalService::RemoveDecal(const TerrainDecalId id)
     return RemoveRuntimeDecal_(id, true);
 }
 
-bool TerrainDecalService::GetDecal(const TerrainDecalId id, TerrainDecalSnapshot* outSnapshot) const
+bool TerrainDecalService::GetDecal(const TerrainDecalId id,
+                                   TerrainDecalSnapshot* const outSnapshot,
+                                   const uint32_t snapshotSize) const
 {
-    if (!outSnapshot || id.value == 0) {
+    if (!outSnapshot || id.value == 0 || snapshotSize < kTerrainDecalSnapshotSize) {
         return false;
     }
 
@@ -113,13 +153,16 @@ bool TerrainDecalService::GetDecal(const TerrainDecalId id, TerrainDecalSnapshot
         return false;
     }
 
-    *outSnapshot = TerrainDecalSnapshot{.id = record->id, .state = record->state};
-    return true;
+    return CopySnapshotToCaller(TerrainDecalSnapshot{.id = record->id, .state = record->state},
+                                outSnapshot,
+                                snapshotSize);
 }
 
-bool TerrainDecalService::ReplaceDecal(const TerrainDecalId id, const TerrainDecalState& newState)
+bool TerrainDecalService::ReplaceDecal(const TerrainDecalId id,
+                                       const TerrainDecalState* const newState,
+                                       const uint32_t stateSize)
 {
-    if (id.value == 0) {
+    if (!newState || id.value == 0 || stateSize < kTerrainDecalStateSize) {
         return false;
     }
 
@@ -128,7 +171,7 @@ bool TerrainDecalService::ReplaceDecal(const TerrainDecalId id, const TerrainDec
         return false;
     }
 
-    TerrainDecalState validated = newState;
+    TerrainDecalState validated = CopyStateFromCaller(newState, stateSize);
     std::string error;
     if (!ValidateState_(validated, error)) {
         LOG_WARN("TerrainDecalService: ReplaceDecal validation failed for {}: {}", id.value, error);
@@ -143,19 +186,28 @@ uint32_t TerrainDecalService::GetDecalCount() const
     return registry_.GetCount();
 }
 
-uint32_t TerrainDecalService::CopyDecals(TerrainDecalSnapshot* buffer, const uint32_t capacity) const
+uint32_t TerrainDecalService::CopyDecals(TerrainDecalSnapshot* const buffer,
+                                         const uint32_t capacity,
+                                         const uint32_t snapshotSize) const
 {
-    if (!buffer || capacity == 0) {
+    if (!buffer || capacity == 0 || snapshotSize < kTerrainDecalSnapshotSize) {
         return 0;
     }
 
     uint32_t count = 0;
+    auto* const bytes = reinterpret_cast<std::byte*>(buffer);
     for (const auto& [id, record] : registry_.Records()) {
         if (count >= capacity) {
             break;
         }
 
-        buffer[count++] = TerrainDecalSnapshot{.id = TerrainDecalId{id}, .state = record.state};
+        auto* const destination = reinterpret_cast<TerrainDecalSnapshot*>(bytes + (snapshotSize * count));
+        if (!CopySnapshotToCaller(TerrainDecalSnapshot{.id = TerrainDecalId{id}, .state = record.state},
+                                  destination,
+                                  snapshotSize)) {
+            break;
+        }
+        ++count;
     }
 
     return count;
@@ -172,14 +224,19 @@ bool TerrainDecalService::OnTick(const uint32_t unknown1)
     return true;
 }
 
-void TerrainDecalService::SetEnableExperimentalRenderer(const bool enableExperimentalRenderer) noexcept
+void TerrainDecalService::SetEnableCustomRenderer(const bool enableCustomRenderer) noexcept
 {
-    enableExperimentalRenderer_ = enableExperimentalRenderer;
+    enableCustomRenderer_ = enableCustomRenderer;
 }
 
-void TerrainDecalService::SetDefaultDepthOffset(const int defaultDepthOffset) noexcept
+void TerrainDecalService::SetCustomDefaultDepthOffset(const int customDefaultDepthOffset) noexcept
 {
-    defaultDepthOffset_ = defaultDepthOffset;
+    customDefaultDepthOffset_ = customDefaultDepthOffset;
+}
+
+void TerrainDecalService::SetShadowRecoveryOpacityScale(const float shadowRecoveryOpacityScale) noexcept
+{
+    shadowRecoveryOpacityScale_ = shadowRecoveryOpacityScale;
 }
 
 bool TerrainDecalService::Init()
@@ -191,8 +248,9 @@ bool TerrainDecalService::Init()
 
     renderHook_ = std::make_unique<TerrainDecal::TerrainDecalHook>(TerrainDecal::TerrainDecalHook::Options{
         .installEnabled = true,
-        .enableExperimentalRenderer = enableExperimentalRenderer_,
-        .defaultDepthOffset = defaultDepthOffset_,
+        .enableCustomRenderer = enableCustomRenderer_,
+        .customDefaultDepthOffset = customDefaultDepthOffset_,
+        .shadowRecoveryOpacityScale = shadowRecoveryOpacityScale_,
     });
 
     if (!renderHook_->Install()) {

@@ -5,6 +5,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <mutex>
 #include <unordered_set>
@@ -279,10 +280,14 @@ namespace
 
     using DrawPrimsFn = void(__thiscall*)(SC4DrawContext*, uint32_t, uint32_t, uint32_t, const void*);
     using SetDepthOffsetFn = void(__thiscall*)(SC4DrawContext*, int);
+    // SC4DrawContext::SetTransparency is a tail-call shim to the renderer; the float
+    // opacity stays on the stack just like the original DrawDecals call sequence.
+    using SetTransparencyFn = void(__thiscall*)(SC4DrawContext*, float);
 
     // Vanilla DrawDecals uses depth offset 2; DrawShadows uses 3 (higher = closer to camera in SC4).
     // Set decals to 4+ to ensure they win the depth test against shadow pixels.
     constexpr int kVanillaDecalDepthOffset = 2;
+    constexpr std::ptrdiff_t kOverlaySlotOpacityOffset = 0x9C;
 
     [[nodiscard]] OverlaySlotView ReadOverlaySlotView(const std::byte* slotBase)
     {
@@ -331,6 +336,25 @@ namespace
             return "clip";
         default:
             return "unknown";
+        }
+    }
+
+    [[nodiscard]] float ReadOverlaySlotOpacity(const std::byte* const slotBase) noexcept
+    {
+        float opacity = 1.0f;
+        if (slotBase) {
+            std::memcpy(&opacity, slotBase + kOverlaySlotOpacityOffset, sizeof(opacity));
+        }
+        return opacity;
+    }
+
+    void SetOverlayTransparency(SC4DrawContext* const drawContext,
+                                const TerrainDecal::HookAddresses& addresses,
+                                const float opacity) noexcept
+    {
+        if (drawContext && addresses.setTransparency) {
+            const auto setTransparency = reinterpret_cast<SetTransparencyFn>(addresses.setTransparency);
+            setTransparency(drawContext, opacity);
         }
     }
 
@@ -918,6 +942,7 @@ namespace TerrainDecal
     DrawResult ClippedTerrainDecalRenderer::Draw(const DrawRequest& request)
     {
         const bool debugOverridesActive = !overlayUvWindows_.empty();
+        const bool shadowRecovery = request.mode == DrawMode::ShadowRecovery;
 
         if (!options_.enableClippedRendering) {
             LOG_WARN("TerrainDecalRenderer: falling through to vanilla because clipped rendering is disabled");
@@ -956,6 +981,7 @@ namespace TerrainDecal
         TerrainDecalOverlayOverrides overrides{};
         TerrainDecalUvWindow storedUvWindow{};
         bool hasUvOverride = false;
+        bool hasManagedOverrides = false;
         if (hasOverlayId) {
             if (TryGetOverlayUvWindow(overlayId, storedUvWindow)) {
                 overrides.hasUvWindow = true;
@@ -967,11 +993,18 @@ namespace TerrainDecal
                                            overlayId,
                                            overrides,
                                            overlayOverridesResolverUserData_)) {
+                hasManagedOverrides = true;
                 hasUvOverride = hasUvOverride || overrides.hasUvWindow;
             }
         }
+        const bool isManagedOverlay = hasManagedOverrides || hasUvOverride;
+        if (shadowRecovery && !isManagedOverlay) {
+            return DrawResult::Handled;
+        }
+
         const TerrainDecalUvWindow& uvRect = overrides.uvWindow;
         const bool hasModifiers = HasDecalModifiers(overrides);
+        const bool forceCustomDraw = shadowRecovery && isManagedOverlay;
         const bool clipOnlyUvOverride = hasUvOverride && uvRect.mode == TerrainDecalUvMode::ClipSubrect;
         const bool effectiveClipU = clipU || clipOnlyUvOverride;
         const bool effectiveClipV = clipV || clipOnlyUvOverride;
@@ -990,7 +1023,7 @@ namespace TerrainDecal
                      effectiveClipU,
                      effectiveClipV);
         }
-        if (!effectiveClipU && !effectiveClipV && !hasUvOverride && !hasModifiers) {
+        if (!forceCustomDraw && !effectiveClipU && !effectiveClipV && !hasUvOverride && !hasModifiers) {
             LOG_WARN("TerrainDecalRenderer: overlay {} falling through because no clip or override path is active",
                      overlayId);
             return DrawResult::FallThroughToVanilla;
@@ -1156,7 +1189,7 @@ namespace TerrainDecal
                 return DrawResult::FallThroughToVanilla;
             }
 
-            if (!hasUvOverride && !hasModifiers) {
+            if (!forceCustomDraw && !hasUvOverride && !hasModifiers) {
                 if (ShouldLogOverlayOnce(overlayId, "clip-empty")) {
                     LOG_TRACE("TerrainDecalRenderer: overlay {} fell through because clipping produced no output vertices",
                              overlayId);
@@ -1165,7 +1198,7 @@ namespace TerrainDecal
                 return DrawResult::FallThroughToVanilla;
             }
 
-            if (hasUvOverride || debugOverridesActive) {
+            if (hasUvOverride || debugOverridesActive || forceCustomDraw) {
                 LOG_DEBUG("TerrainDecalRenderer: overlay {} handled but produced no output vertices", overlayId);
             }
             return DrawResult::Handled;
@@ -1176,13 +1209,26 @@ namespace TerrainDecal
             setTexTransform(request.drawContext, texTransformOverride.adjusted.data(), request.activeTexTransformStage);
         }
 
-        const int effectiveDepthOffset = overrides.depthOffset >= 0
-                                             ? overrides.depthOffset
-                                             : options_.defaultDepthOffset;
+        const int effectiveDepthOffset = shadowRecovery
+                                             ? options_.shadowRecoveryDepthOffset
+                                             : (overrides.depthOffset >= 0
+                                                    ? overrides.depthOffset
+                                                    : options_.customDefaultDepthOffset);
 
         if (request.addresses->setDepthOffset) {
             const auto setDepthOffset = reinterpret_cast<SetDepthOffsetFn>(request.addresses->setDepthOffset);
             setDepthOffset(request.drawContext, effectiveDepthOffset);
+        }
+
+        float originalOpacity = 1.0f;
+        bool opacityScaled = false;
+        if (shadowRecovery && request.overlaySlotBase) {
+            originalOpacity = ReadOverlaySlotOpacity(request.overlaySlotBase);
+            if (std::isfinite(originalOpacity)) {
+                const float opacityScale = std::clamp(options_.shadowRecoveryOpacityScale, 0.0f, 1.0f);
+                SetOverlayTransparency(request.drawContext, *request.addresses, originalOpacity * opacityScale);
+                opacityScaled = true;
+            }
         }
 
         const auto drawPrims = reinterpret_cast<DrawPrimsFn>(request.addresses->drawPrims);
@@ -1193,6 +1239,10 @@ namespace TerrainDecal
                   outputVertices.data());
         if (hasUvOverride || debugOverridesActive) {
             LOG_TRACE("TerrainDecalRenderer: overlay {} submitted {} vertices", overlayId, outputVertices.size());
+        }
+
+        if (opacityScaled) {
+            SetOverlayTransparency(request.drawContext, *request.addresses, originalOpacity);
         }
 
         if (request.addresses->setDepthOffset) {

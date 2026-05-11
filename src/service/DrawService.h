@@ -40,7 +40,7 @@ public:
     void SetRenderStateHighlight(SC4DrawContextHandle handle, const void* material, const void* highlightDesc) override;
     void SetModelTransform(SC4DrawContextHandle handle, const void* transform4x4) override;
     void SetModelTransform(SC4DrawContextHandle handle, float* transform4x4) override;
-    void SetModelViewTransformChanged(SC4DrawContextHandle handle, int changed) override;
+    void SetModelViewTransformChanged(SC4DrawContextHandle handle) override;
     void ResetModelViewTransform(SC4DrawContextHandle handle) override;
     void GetModelViewMatrix(SC4DrawContextHandle handle, void* outMatrix4x4) override;
     void SetModelShade(SC4DrawContextHandle handle, void* modelInstance, const float* rgba) override;
@@ -83,7 +83,7 @@ public:
     bool GetLighting(SC4DrawContextHandle handle) override;
     void SetLighting(SC4DrawContextHandle handle, bool enableLighting) override;
     void SetFog(SC4DrawContextHandle handle, bool enableFog, float* fogColorRgb, float fogStart, float fogEnd) override;
-    void SetCamera(SC4DrawContextHandle handle, int camera) override;
+    void SetCamera(SC4DrawContextHandle handle, cS3DCamera* camera) override;
     void InitContext(SC4DrawContextHandle handle) override;
     void ShutdownContext(SC4DrawContextHandle handle) override;
 
@@ -153,7 +153,7 @@ private:
         void (__thiscall* setRenderStateHighlightMaterial)(void* drawContext, const void* material, const void* highlightDesc);
         void (__thiscall* setModelTransform)(void* drawContext, const void* transform4x4);
         void (__thiscall* setModelTransformFloats)(void* drawContext, float* transform4x4);
-        void (__thiscall* setModelViewTransformChanged)(void* drawContext, int changed);
+        void (__thiscall* setModelViewTransformChanged)(void* drawContext);
         void (__thiscall* resetModelViewTransform)(void* drawContext);
         void (__thiscall* getModelViewMatrix)(void* drawContext, void* outMatrix4x4);
         void (__thiscall* setModelShade)(void* drawContext, void* modelInstance, const float* rgba);
@@ -195,7 +195,7 @@ private:
         uint8_t (__thiscall* getLighting)(void* drawContext);
         void (__thiscall* setLighting)(void* drawContext, bool enableLighting);
         void (__thiscall* setFog)(void* drawContext, bool enableFog, float* fogColorRgb, float fogStart, float fogEnd);
-        void (__thiscall* setCamera)(void* drawContext, int camera);
+        void (__thiscall* setCamera)(void* drawContext, cS3DCamera* camera);
         void (__thiscall* initContext)(void* drawContext);
         void (__thiscall* shutdownContext)(void* drawContext);
         void (__thiscall* drawBoundingBox)(void* drawContext, float* bbox, const void* color);

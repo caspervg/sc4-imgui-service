@@ -15,6 +15,7 @@ namespace TerrainDecal
                 .drawShadowsRoughCallSite = 0x00739373u,
                 .setTexTransform4 = 0x007D4340u,
                 .setTexTransform4CallSite = 0x00736B7Cu,
+                .setTransparency = 0x007D2A20u,
                 .setDepthOffset = 0x007D4480u,
                 .setVertexBuffer = 0x007D2970u,
                 .drawPrims = 0x007D2990u,

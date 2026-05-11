@@ -84,7 +84,7 @@ namespace
         std::snprintf(
             buffer,
             bufferSize,
-            "#%u | %s | tex %s | pos %.1f, %.1f | size %.2f | rot %.3f | op %.2f | mode %u | flags %08X | %s%s",
+            "#%u | %s | tex %s | pos %.1f, %.1f | size %.2f | rot %.3f | op %.2f | mode %u | depth %d | flags %08X | %s%s",
             snapshot.id.value,
             OverlayTypeLabel(snapshot.state.overlayType),
             textureBuffer,
@@ -94,6 +94,7 @@ namespace
             snapshot.state.decalInfo.rotationTurns,
             snapshot.state.opacity,
             static_cast<unsigned>(snapshot.state.drawMode),
+            snapshot.state.depthOffset,
             snapshot.state.flags,
             snapshot.state.enabled ? "enabled" : "disabled",
             snapshot.state.hasUvWindow ? " | uv" : "");
@@ -194,7 +195,10 @@ namespace
             }
 
             decals_.resize(count);
-            const uint32_t copied = service_->CopyDecals(decals_.data(), count);
+            const uint32_t copied = service_->CopyDecals(
+                decals_.data(),
+                count,
+                static_cast<uint32_t>(sizeof(TerrainDecalSnapshot)));
             decals_.resize(copied);
 
             if (selectedId_.value != 0) {
@@ -226,7 +230,7 @@ namespace
             }
 
             TerrainDecalSnapshot snapshot{};
-            if (!service_->GetDecal(selectedId_, &snapshot)) {
+            if (!service_->GetDecal(selectedId_, &snapshot, static_cast<uint32_t>(sizeof(snapshot)))) {
                 SetStatus("Failed to load selected decal");
                 return false;
             }
@@ -239,7 +243,7 @@ namespace
         bool CreateFromEditor()
         {
             TerrainDecalId newId{};
-            if (!service_->CreateDecal(editor_, &newId)) {
+            if (!service_->CreateDecal(&editor_, static_cast<uint32_t>(sizeof(editor_)), &newId)) {
                 SetStatus("CreateDecal failed");
                 return false;
             }
@@ -258,7 +262,7 @@ namespace
                 return false;
             }
 
-            if (!service_->ReplaceDecal(selectedId_, editor_)) {
+            if (!service_->ReplaceDecal(selectedId_, &editor_, static_cast<uint32_t>(sizeof(editor_)))) {
                 SetStatus("ReplaceDecal failed");
                 return false;
             }
@@ -340,6 +344,7 @@ namespace
             ImGui::Checkbox("Enabled", &editor_.enabled);
             ImGui::ColorEdit3("Color", &editor_.color.fX);
             ImGui::InputScalar("Draw mode", ImGuiDataType_U8, &editor_.drawMode, nullptr, nullptr, "%u");
+            ImGui::InputInt("Depth offset (-1 default)", &editor_.depthOffset);
             ImGui::InputScalar("Flags", ImGuiDataType_U32, &editor_.flags, nullptr, nullptr, "%08X");
 
             ImGui::InputFloat("Base size", &editor_.decalInfo.baseSize, 0.1f, 1.0f, "%.2f");
