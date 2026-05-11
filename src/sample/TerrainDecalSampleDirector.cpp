@@ -116,7 +116,7 @@ namespace
     class TerrainDecalPanel final : public ImGuiPanel
     {
     public:
-        explicit TerrainDecalPanel(cIGZTerrainDecalService2* service)
+        explicit TerrainDecalPanel(cIGZTerrainDecalService* service)
             : service_(service)
             , selectedId_{}
             , editor_(MakeDefaultState())
@@ -195,7 +195,7 @@ namespace
             }
 
             decals_.resize(count);
-            const uint32_t copied = service_->CopyDecals2(
+            const uint32_t copied = service_->CopyDecals(
                 decals_.data(),
                 count,
                 static_cast<uint32_t>(sizeof(TerrainDecalSnapshot)));
@@ -230,7 +230,7 @@ namespace
             }
 
             TerrainDecalSnapshot snapshot{};
-            if (!service_->GetDecal2(selectedId_, &snapshot, static_cast<uint32_t>(sizeof(snapshot)))) {
+            if (!service_->GetDecal(selectedId_, &snapshot, static_cast<uint32_t>(sizeof(snapshot)))) {
                 SetStatus("Failed to load selected decal");
                 return false;
             }
@@ -243,7 +243,7 @@ namespace
         bool CreateFromEditor()
         {
             TerrainDecalId newId{};
-            if (!service_->CreateDecal2(&editor_, static_cast<uint32_t>(sizeof(editor_)), &newId)) {
+            if (!service_->CreateDecal(&editor_, static_cast<uint32_t>(sizeof(editor_)), &newId)) {
                 SetStatus("CreateDecal failed");
                 return false;
             }
@@ -262,7 +262,7 @@ namespace
                 return false;
             }
 
-            if (!service_->ReplaceDecal2(selectedId_, &editor_, static_cast<uint32_t>(sizeof(editor_)))) {
+            if (!service_->ReplaceDecal(selectedId_, &editor_, static_cast<uint32_t>(sizeof(editor_)))) {
                 SetStatus("ReplaceDecal failed");
                 return false;
             }
@@ -405,7 +405,7 @@ namespace
         }
 
     private:
-        cIGZTerrainDecalService2* service_ = nullptr;
+        cIGZTerrainDecalService* service_ = nullptr;
         std::vector<TerrainDecalSnapshot> decals_{};
         TerrainDecalId selectedId_{};
         TerrainDecalState editor_{};
@@ -456,7 +456,7 @@ public:
             return true;
         }
 
-        if (!mpFrameWork->GetSystemService(kTerrainDecalServiceID, GZIID_cIGZTerrainDecalService2,
+        if (!mpFrameWork->GetSystemService(kTerrainDecalServiceID, GZIID_cIGZTerrainDecalService,
                                            reinterpret_cast<void**>(&terrainDecalService_))) {
             LOG_WARN("TerrainDecalSample: TerrainDecal service not available");
             imguiService_->Release();
@@ -501,7 +501,7 @@ public:
 
 private:
     cIGZImGuiService* imguiService_;
-    cIGZTerrainDecalService2* terrainDecalService_;
+    cIGZTerrainDecalService* terrainDecalService_;
     bool panelRegistered_;
 };
 

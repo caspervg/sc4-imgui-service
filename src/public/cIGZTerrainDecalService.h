@@ -48,36 +48,22 @@ struct TerrainDecalSnapshot {
     TerrainDecalState state{};
 };
 
-static constexpr size_t kTerrainDecalStateSizeV1 = offsetof(TerrainDecalState, depthOffset);
-static constexpr size_t kTerrainDecalStateSizeV2 = sizeof(TerrainDecalState);
-static constexpr size_t kTerrainDecalSnapshotSizeV1 = offsetof(TerrainDecalSnapshot, state) + kTerrainDecalStateSizeV1;
-static constexpr size_t kTerrainDecalSnapshotSizeV2 = sizeof(TerrainDecalSnapshot);
+static constexpr size_t kTerrainDecalStateSize = sizeof(TerrainDecalState);
+static constexpr size_t kTerrainDecalSnapshotSize = sizeof(TerrainDecalSnapshot);
 
 // ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
 class cIGZTerrainDecalService : public cIGZUnknown {
 public:
     [[nodiscard]] virtual uint32_t GetServiceID() const = 0;
-
-    // Legacy ABI. Struct reads/writes are limited to kTerrainDecalStateSizeV1 /
-    // kTerrainDecalSnapshotSizeV1; depthOffset uses the service default.
-    virtual bool CreateDecal(const TerrainDecalState& initialState, TerrainDecalId* outId) = 0;
-    virtual bool RemoveDecal(TerrainDecalId id) = 0;
-
-    virtual bool GetDecal(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot) const = 0;
-    virtual bool ReplaceDecal(TerrainDecalId id, const TerrainDecalState& newState) = 0;
-
-    [[nodiscard]] virtual uint32_t GetDecalCount() const = 0;
-    virtual uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity) const = 0;
-};
-
-// ReSharper disable once CppPolymorphicClassWithNonVirtualPublicDestructor
-class cIGZTerrainDecalService2 : public cIGZTerrainDecalService {
-public:
     [[nodiscard]] virtual uint32_t GetStateSize() const = 0;
     [[nodiscard]] virtual uint32_t GetSnapshotSize() const = 0;
 
-    virtual bool CreateDecal2(const TerrainDecalState* initialState, uint32_t stateSize, TerrainDecalId* outId) = 0;
-    virtual bool GetDecal2(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot, uint32_t snapshotSize) const = 0;
-    virtual bool ReplaceDecal2(TerrainDecalId id, const TerrainDecalState* newState, uint32_t stateSize) = 0;
-    virtual uint32_t CopyDecals2(TerrainDecalSnapshot* buffer, uint32_t capacity, uint32_t snapshotSize) const = 0;
+    virtual bool CreateDecal(const TerrainDecalState* initialState, uint32_t stateSize, TerrainDecalId* outId) = 0;
+    virtual bool RemoveDecal(TerrainDecalId id) = 0;
+
+    virtual bool GetDecal(TerrainDecalId id, TerrainDecalSnapshot* outSnapshot, uint32_t snapshotSize) const = 0;
+    virtual bool ReplaceDecal(TerrainDecalId id, const TerrainDecalState* newState, uint32_t stateSize) = 0;
+
+    [[nodiscard]] virtual uint32_t GetDecalCount() const = 0;
+    virtual uint32_t CopyDecals(TerrainDecalSnapshot* buffer, uint32_t capacity, uint32_t snapshotSize) const = 0;
 };

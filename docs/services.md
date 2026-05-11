@@ -192,6 +192,8 @@ Capabilities:
 - Apply optional UV sub-rectangle overrides for atlas-style textures.
 
 Important behavior:
+- Struct-based terrain decal calls take an explicit struct size so the single
+  interface can grow by appending fields in a later build.
 - `CreateDecal` and `ReplaceDecal` operate on the active city only.
 - `GetDecal` and `CopyDecals` return service-managed snapshots.
 - The service is currently intended for plugin-managed decals, not for
@@ -218,7 +220,7 @@ state.opacity = 1.0f;
 state.enabled = true;
 
 TerrainDecalId id{};
-terrainDecalService->CreateDecal(state, &id);
+terrainDecalService->CreateDecal(&state, sizeof(state), &id);
 terrainDecalService->Release();
 ```
 

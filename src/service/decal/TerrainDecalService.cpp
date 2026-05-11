@@ -51,7 +51,7 @@ namespace
                               TerrainDecalSnapshot* const destination,
                               const uint32_t destinationSize) noexcept
     {
-        if (!destination || destinationSize < kTerrainDecalSnapshotSizeV1) {
+        if (!destination || destinationSize < kTerrainDecalSnapshotSize) {
             return false;
         }
 
@@ -89,52 +89,12 @@ bool TerrainDecalService::QueryInterface(const uint32_t riid, void** ppvObj)
         return true;
     }
 
-    if (riid == GZIID_cIGZTerrainDecalService2) {
-        *ppvObj = static_cast<cIGZTerrainDecalService2*>(this);
-        AddRef();
-        return true;
-    }
-
     return cRZBaseSystemService::QueryInterface(riid, ppvObj);
 }
 
 uint32_t TerrainDecalService::GetServiceID() const
 {
     return kTerrainDecalServiceID;
-}
-
-bool TerrainDecalService::CreateDecal(const TerrainDecalState& initialState, TerrainDecalId* outId)
-{
-    return CreateDecal2(&initialState, static_cast<uint32_t>(kTerrainDecalStateSizeV1), outId);
-}
-
-bool TerrainDecalService::RemoveDecal(const TerrainDecalId id)
-{
-    if (id.value == 0) {
-        return false;
-    }
-
-    return RemoveRuntimeDecal_(id, true);
-}
-
-bool TerrainDecalService::GetDecal(const TerrainDecalId id, TerrainDecalSnapshot* outSnapshot) const
-{
-    return GetDecal2(id, outSnapshot, static_cast<uint32_t>(kTerrainDecalSnapshotSizeV1));
-}
-
-bool TerrainDecalService::ReplaceDecal(const TerrainDecalId id, const TerrainDecalState& newState)
-{
-    return ReplaceDecal2(id, &newState, static_cast<uint32_t>(kTerrainDecalStateSizeV1));
-}
-
-uint32_t TerrainDecalService::GetDecalCount() const
-{
-    return registry_.GetCount();
-}
-
-uint32_t TerrainDecalService::CopyDecals(TerrainDecalSnapshot* buffer, const uint32_t capacity) const
-{
-    return CopyDecals2(buffer, capacity, static_cast<uint32_t>(kTerrainDecalSnapshotSizeV1));
 }
 
 uint32_t TerrainDecalService::GetStateSize() const
@@ -147,11 +107,11 @@ uint32_t TerrainDecalService::GetSnapshotSize() const
     return static_cast<uint32_t>(sizeof(TerrainDecalSnapshot));
 }
 
-bool TerrainDecalService::CreateDecal2(const TerrainDecalState* const initialState,
-                                        const uint32_t stateSize,
-                                        TerrainDecalId* const outId)
+bool TerrainDecalService::CreateDecal(const TerrainDecalState* const initialState,
+                                      const uint32_t stateSize,
+                                      TerrainDecalId* const outId)
 {
-    if (!initialState || !outId || stateSize < kTerrainDecalStateSizeV1) {
+    if (!initialState || !outId || stateSize < kTerrainDecalStateSize) {
         return false;
     }
 
@@ -171,11 +131,20 @@ bool TerrainDecalService::CreateDecal2(const TerrainDecalState* const initialSta
     return true;
 }
 
-bool TerrainDecalService::GetDecal2(const TerrainDecalId id,
-                                     TerrainDecalSnapshot* const outSnapshot,
-                                     const uint32_t snapshotSize) const
+bool TerrainDecalService::RemoveDecal(const TerrainDecalId id)
 {
-    if (!outSnapshot || id.value == 0 || snapshotSize < kTerrainDecalSnapshotSizeV1) {
+    if (id.value == 0) {
+        return false;
+    }
+
+    return RemoveRuntimeDecal_(id, true);
+}
+
+bool TerrainDecalService::GetDecal(const TerrainDecalId id,
+                                   TerrainDecalSnapshot* const outSnapshot,
+                                   const uint32_t snapshotSize) const
+{
+    if (!outSnapshot || id.value == 0 || snapshotSize < kTerrainDecalSnapshotSize) {
         return false;
     }
 
@@ -189,11 +158,11 @@ bool TerrainDecalService::GetDecal2(const TerrainDecalId id,
                                 snapshotSize);
 }
 
-bool TerrainDecalService::ReplaceDecal2(const TerrainDecalId id,
-                                         const TerrainDecalState* const newState,
-                                         const uint32_t stateSize)
+bool TerrainDecalService::ReplaceDecal(const TerrainDecalId id,
+                                       const TerrainDecalState* const newState,
+                                       const uint32_t stateSize)
 {
-    if (!newState || id.value == 0 || stateSize < kTerrainDecalStateSizeV1) {
+    if (!newState || id.value == 0 || stateSize < kTerrainDecalStateSize) {
         return false;
     }
 
@@ -212,11 +181,16 @@ bool TerrainDecalService::ReplaceDecal2(const TerrainDecalId id,
     return ApplyStateToRuntime_(*record, validated);
 }
 
-uint32_t TerrainDecalService::CopyDecals2(TerrainDecalSnapshot* const buffer,
-                                           const uint32_t capacity,
-                                           const uint32_t snapshotSize) const
+uint32_t TerrainDecalService::GetDecalCount() const
 {
-    if (!buffer || capacity == 0 || snapshotSize < kTerrainDecalSnapshotSizeV1) {
+    return registry_.GetCount();
+}
+
+uint32_t TerrainDecalService::CopyDecals(TerrainDecalSnapshot* const buffer,
+                                         const uint32_t capacity,
+                                         const uint32_t snapshotSize) const
+{
+    if (!buffer || capacity == 0 || snapshotSize < kTerrainDecalSnapshotSize) {
         return 0;
     }
 
